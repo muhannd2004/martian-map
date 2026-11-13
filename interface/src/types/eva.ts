@@ -53,7 +53,7 @@ export type LayerId =
   | 'geologicZones'
   | 'perseveranceTraverse'
 
-export type ControlCircleId = LayerId | 'waypoints' | 'maxSlope'
+export type ControlCircleId = LayerId | 'waypoints' | 'maxSlope' | 'stormMode'
 
 export type LayerKind =
   | 'mola-dem'
@@ -125,4 +125,5 @@ export interface PlanEvaParams {
   targetWaypointId: string
   maxSlopeDeg: number
   stormMode: boolean
+  extraWaypoints?: Waypoint[]
 }

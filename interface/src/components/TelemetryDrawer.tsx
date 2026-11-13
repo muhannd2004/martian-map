@@ -30,7 +30,6 @@ interface TelemetryDrawerProps {
   startWaypoint: Waypoint
   targetWaypoint: Waypoint
   routePlan: EvaRoutePlan
-  stormMode: boolean
   onSwapWaypoints: () => void
 }
 
@@ -40,7 +39,6 @@ export function TelemetryDrawer({
   startWaypoint,
   targetWaypoint,
   routePlan,
-  stormMode,
   onSwapWaypoints,
 }: TelemetryDrawerProps) {
   useEffect(() => {
@@ -64,21 +62,12 @@ export function TelemetryDrawer({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border bg-[#0b111e]/98 shadow-[0_24px_80px_rgba(0,0,0,0.9)] ${'border-cyan-500/35'
-        }`}
+        className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-cyan-500/35 bg-[#0b111e]/98 shadow-[0_24px_80px_rgba(0,0,0,0.9)]"
       >
         {/* Mini-Page Header */}
-        <div
-          className={`flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3.5 ${
-              'border-slate-800 bg-slate-950/60'
-          }`}
-        >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-950/60 px-5 py-3.5">
           <div className="flex items-center gap-3">
-            <div
-              className={`flex h-9 w-9 items-center justify-center rounded-lg border ${
-                'border-cyan-400/45 bg-cyan-500/15 text-cyan-300'
-              }`}
-            >
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-400/45 bg-cyan-500/15 text-cyan-300">
               <Route className="h-4 w-4" />
             </div>
             <div>
@@ -87,11 +76,7 @@ export function TelemetryDrawer({
                   EVA Route Briefing // {startWaypoint.name} →{' '}
                   {targetWaypoint.name}
                 </h2>
-                <span
-                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase ${
-                    'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/35'
-                  }`}
-                >
+                <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-300 uppercase ring-1 ring-emerald-500/35">
                   {routePlan.mode}
                 </span>
                 <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">
@@ -173,7 +158,6 @@ export function TelemetryDrawer({
                 icon={<Radiation className="h-3.5 w-3.5 text-emerald-400" />}
                 label="CUM. RAD"
                 value={`${routePlan.metrics.cumulativeRadiationMsv.toFixed(3)} mSv`}
-                warning={stormMode}
               />
               <MetricTile
                 icon={<Wind className="h-3.5 w-3.5 text-cyan-400" />}

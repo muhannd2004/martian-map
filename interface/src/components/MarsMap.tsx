@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
+import type { Marker as LeafletMarker } from 'leaflet'
 import type { Feature, Polygon } from 'geojson'
 import {
   GeoJSON,
-  ImageOverlay,
   MapContainer,
   Marker,
   Polyline,
@@ -25,7 +25,6 @@ import {
   JEZERO_BOUNDS,
   JEZERO_CENTER,
   JEZERO_DEFAULT_ZOOM,
-  JEZERO_WAYPOINTS,
   MARS_TREK_JEZERO_CTX_MOSAIC_WMTS_URL,
   MARS_TREK_JEZERO_HIRISE_WMTS_URL,
 } from '../data/waypoints'
@@ -35,20 +34,21 @@ import type {
   LatLonTuple,
   LayerConfig,
   LayerId,
-  RasterAvailabilityMap,
   Waypoint,
   WaypointCategory,
 } from '../types/eva'
 
 interface MarsMapProps {
   layers: LayerConfig[]
-  rasterStatus: RasterAvailabilityMap
   routePlan: EvaRoutePlan
+  waypoints: Waypoint[]
+  probeWaypoint: Waypoint | null
   startWaypointId: string
   targetWaypointId: string
   selectedWaypointId: string
   stormMode: boolean
   onSelectWaypoint: (waypointId: string) => void
+  onDropMapWaypoint: (coords: LatLonTuple) => void
   onSetStart: (waypointId: string) => void
   onSetTarget: (waypointId: string) => void
   onStartRouteFromPin: (waypointId: string) => void
@@ -150,6 +150,88 @@ function MapCursorTracker({
   return null
 }
 
+function MapClickDropper({
+  onDropWaypoint,
+}: {
+  onDropWaypoint: (coords: LatLonTuple) => void
+}) {
+  useMapEvents({
+    click(e) {
+      const target = e.originalEvent.target as HTMLElement | null
+      if (
+        target?.closest('.leaflet-marker-icon, .leaflet-popup, .leaflet-control')
+      ) {
+        return
+      }
+      const clampedLat = Math.max(
+        JEZERO_BOUNDS[0][0],
+        Math.min(JEZERO_BOUNDS[1][0], e.latlng.lat),
+      )
+      const clampedLon = Math.max(
+        JEZERO_BOUNDS[0][1],
+        Math.min(JEZERO_BOUNDS[1][1], e.latlng.lng),
+      )
+      onDropWaypoint([clampedLat, clampedLon])
+    },
+  })
+  return null
+}
+
+function ProbeWaypointMarker({
+  waypoint,
+  selectedWaypointId,
+  onSelectWaypoint,
+  onSetStart,
+  onSetTarget,
+  onStartRouteFromPin,
+}: {
+  waypoint: Waypoint
+  selectedWaypointId: string
+  onSelectWaypoint: (waypointId: string) => void
+  onSetStart: (waypointId: string) => void
+  onSetTarget: (waypointId: string) => void
+  onStartRouteFromPin: (waypointId: string) => void
+}) {
+  const markerRef = useRef<LeafletMarker | null>(null)
+  const [probeLat, probeLon] = waypoint.coords
+  const icon = createWaypointDivIcon(
+    waypoint,
+    'none',
+    selectedWaypointId === waypoint.id,
+  )
+
+  useEffect(() => {
+    const marker = markerRef.current
+    if (!marker) return
+    const frameId = window.requestAnimationFrame(() => {
+      marker.openPopup()
+    })
+    return () => window.cancelAnimationFrame(frameId)
+  }, [probeLat, probeLon, waypoint.id])
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={waypoint.coords}
+      icon={icon}
+      eventHandlers={{
+        click: () => onSelectWaypoint(waypoint.id),
+      }}
+    >
+      <Popup maxWidth={285} minWidth={245}>
+        <PinPopupContent
+          key={`${waypoint.id}-${waypoint.coords[0]}-${waypoint.coords[1]}`}
+          waypoint={waypoint}
+          role="none"
+          onSetStart={onSetStart}
+          onSetTarget={onSetTarget}
+          onStartRouteFromPin={onStartRouteFromPin}
+        />
+      </Popup>
+    </Marker>
+  )
+}
+
 function PinPopupContent({
   waypoint,
   role,
@@ -166,7 +248,7 @@ function PinPopupContent({
   const [imgError, setImgError] = useState(false)
 
   return (
-    <div className="w-[238px] space-y-2 text-slate-100">
+    <div className="w-[248px] space-y-2 text-slate-100">
       <div className="flex items-center justify-between gap-2">
         <span
           className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase ${
@@ -190,13 +272,16 @@ function PinPopupContent({
 
       <div>
         <div className="text-xs font-semibold text-white">{waypoint.name}</div>
+        <div className="mt-0.5 font-mono text-[10px] text-slate-400">
+          {waypoint.coords[0].toFixed(4)}°N, {waypoint.coords[1].toFixed(4)}°E
+        </div>
         <div className="mt-0.5 font-mono text-[10px] text-cyan-300">
           {waypoint.geologicUnit}
         </div>
       </div>
 
       {!imgError ? (
-        <div className="overflow-hidden rounded border border-slate-700/70 bg-slate-950">
+        <div className="relative overflow-hidden rounded border border-slate-700/70 bg-slate-950">
           <img
             src={waypoint.povImageUrl}
             alt={waypoint.povTitle}
@@ -204,12 +289,22 @@ function PinPopupContent({
             loading="lazy"
             onError={() => setImgError(true)}
           />
+          <div className="bg-gradient-to-t from-black/90 via-black/40 to-transparent px-1.5 py-1 text-[9px] leading-tight text-slate-200">
+            {waypoint.povTitle}
+          </div>
         </div>
       ) : (
         <div className="flex h-16 items-center justify-center rounded border border-slate-700/70 bg-slate-950/90 px-2 text-center font-mono text-[10px] text-slate-400">
           Mastcam-Z preview unavailable offline
         </div>
       )}
+
+      <p className="text-[11px] leading-snug text-slate-200">
+        {waypoint.scienceObjective}
+      </p>
+      <p className="rounded border border-slate-800/90 bg-slate-950/70 px-2 py-1 font-mono text-[10px] leading-snug text-slate-300">
+        {waypoint.rationale}
+      </p>
 
       <div className="grid grid-cols-3 gap-1 font-mono text-[10px]">
         <div className="rounded bg-slate-900/90 px-1.5 py-1">
@@ -316,13 +411,15 @@ function MapBoundsManager() {
 
 export function MarsMap({
   layers,
-  rasterStatus,
   routePlan,
+  waypoints,
+  probeWaypoint,
   startWaypointId,
   targetWaypointId,
   selectedWaypointId,
   stormMode,
   onSelectWaypoint,
+  onDropMapWaypoint,
   onSetStart,
   onSetTarget,
   onStartRouteFromPin,
@@ -337,8 +434,8 @@ export function MarsMap({
     return record
   }, [layers])
 
-  const routeGlowColor = stormMode ? '#f59e0b' : '#06b6d4'
-  const routeCoreColor = stormMode ? '#fef08a' : '#34d399'
+  const routeGlowColor = '#06b6d4'
+  const routeCoreColor = '#34d399'
 
   return (
     <div className="relative isolate h-full w-full flex-1 overflow-hidden bg-[#090d16]">
@@ -356,6 +453,7 @@ export function MarsMap({
         className="h-full w-full"
       >
         <MapCursorTracker onCursorMove={setCursorCoords} />
+        <MapClickDropper onDropWaypoint={onDropMapWaypoint} />
         <MapBoundsManager />
 
         {/* 1. Permanent Jezero Base Backdrop: Gap-free NASA Mars Trek HiRISE+CTX+HRSC */}
@@ -489,15 +587,14 @@ export function MarsMap({
               pathOptions={{
                 color: routeCoreColor,
                 weight: 3,
-                dashArray: stormMode ? '8 6' : undefined,
                 opacity: 0.95,
               }}
             />
           </>
         )}
 
-        {/* 5 Jezero Waypoint Markers (Custom L.divIcon) */}
-        {JEZERO_WAYPOINTS.map((wp) => {
+        {/* Mission & Active Custom Waypoint Markers (Custom L.divIcon) */}
+        {waypoints.map((wp) => {
           const role =
             wp.id === startWaypointId
               ? 'start'
@@ -516,7 +613,7 @@ export function MarsMap({
                 click: () => onSelectWaypoint(wp.id),
               }}
             >
-              <Popup maxWidth={270} minWidth={235}>
+              <Popup maxWidth={285} minWidth={245}>
                 <PinPopupContent
                   key={wp.id}
                   waypoint={wp}
@@ -529,6 +626,18 @@ export function MarsMap({
             </Marker>
           )
         })}
+
+        {/* Clicked Arbitrary Map Point Waypoint Preview */}
+        {probeWaypoint && (
+          <ProbeWaypointMarker
+            waypoint={probeWaypoint}
+            selectedWaypointId={selectedWaypointId}
+            onSelectWaypoint={onSelectWaypoint}
+            onSetStart={onSetStart}
+            onSetTarget={onSetTarget}
+            onStartRouteFromPin={onStartRouteFromPin}
+          />
+        )}
       </MapContainer>
 
       {/* Bottom-Left Cursor Coordinate & Projection HUD */}
@@ -547,7 +656,7 @@ export function MarsMap({
             </span>
           ) : (
             <span className="text-slate-400">
-              JEZERO DELTA • MOVE CURSOR FOR (LAT, LON)
+              CLICK ANYWHERE FOR WAYPOINT TELEMETRY • (LAT, LON)
             </span>
           )}
         </div>
@@ -555,15 +664,9 @@ export function MarsMap({
 
       {/* Top-Center Route Advisory Overlay */}
       <div className="pointer-events-none absolute top-3 left-1/2 z-[400] -translate-x-1/2">
-        <div
-          className={`rounded-full border px-3.5 py-1 font-mono text-[11px] shadow-lg backdrop-blur-md ${
-            stormMode
-              ? 'border-amber-400/60 bg-amber-950/85 text-amber-200'
-              : 'border-cyan-500/35 bg-[#090d16]/85 text-cyan-200'
-          }`}
-        >
+        <div className="rounded-full border border-cyan-500/35 bg-[#090d16]/85 px-3.5 py-1 font-mono text-[11px] text-cyan-200 shadow-lg backdrop-blur-md">
           {stormMode
-            ? 'STORM ROUTE: SHELTERED LEEWARD CORRIDOR'
+            ? `STORM SHELTER ROUTE • MAX SLOPE ≤ ${routePlan.maxSlopeLimitDeg}°`
             : `NOMINAL ROUTE • MAX SLOPE ≤ ${routePlan.maxSlopeLimitDeg}°`}
         </div>
       </div>

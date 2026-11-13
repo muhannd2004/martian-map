@@ -8,6 +8,8 @@ import type {
 } from '../types/eva'
 
 const MARS_RADIUS_M = 3_389_500
+const PRESET_WAYPOINT_IDS = new Set(JEZERO_WAYPOINTS.map((wp) => wp.id))
+const SEITAH_CENTER: LatLonTuple = [18.435, 77.425]
 
 function toRadians(deg: number): number {
   return (deg * Math.PI) / 180
@@ -28,10 +30,66 @@ function marsDistanceM(a: LatLonTuple, b: LatLonTuple): number {
   return 2 * MARS_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
-function findWaypoint(id: string): Waypoint {
-  return (
-    JEZERO_WAYPOINTS.find((wp) => wp.id === id) ?? JEZERO_WAYPOINTS[0]
-  )
+function findWaypoint(id: string, extraWaypoints?: Waypoint[]): Waypoint {
+  if (extraWaypoints) {
+    const customMatch = extraWaypoints.find((wp) => wp.id === id)
+    if (customMatch) return customMatch
+  }
+  return JEZERO_WAYPOINTS.find((wp) => wp.id === id) ?? JEZERO_WAYPOINTS[0]
+}
+
+function crossesSeitahHazard(a: LatLonTuple, b: LatLonTuple): boolean {
+  for (let i = 1; i <= 4; i++) {
+    const t = i / 5
+    const lat = a[0] + (b[0] - a[0]) * t
+    const lon = a[1] + (b[1] - a[1]) * t
+    if (marsDistanceM([lat, lon], SEITAH_CENTER) < 950) {
+      return true
+    }
+  }
+  return false
+}
+
+function appendCustomCorridor(
+  corridor: LatLonTuple[],
+  east: Waypoint,
+  west: Waypoint,
+  maxSlopeDeg: number,
+  stormMode: boolean,
+  hazardsAvoided: string[],
+): number {
+  const directM = marsDistanceM(east.coords, west.coords)
+  const midLat = (east.coords[0] + west.coords[0]) / 2
+  const midLon = (east.coords[1] + west.coords[1]) / 2
+
+  if (crossesSeitahHazard(east.coords, west.coords)) {
+    corridor.push([18.452, 77.425])
+  } else if (directM > 900 && (stormMode || maxSlopeDeg < 14)) {
+    const latShift = stormMode ? 0.0042 : 0.0024
+    corridor.push([
+      Number((midLat + latShift).toFixed(4)),
+      Number(midLon.toFixed(4)),
+    ])
+  }
+
+  if (stormMode) {
+    hazardsAvoided.push(
+      'Exposed Plateau Ridges (Dust/Radiation)',
+      'Western Delta Escarpment (>15°)',
+    )
+  } else if (maxSlopeDeg < 14) {
+    hazardsAvoided.push('Western Delta Escarpment (>13° Switchback)')
+  } else if (maxSlopeDeg <= 18) {
+    hazardsAvoided.push('Western Delta Steep Scarp (>18°)')
+  }
+
+  const gradeDeg =
+    (Math.atan2(Math.abs(west.elevationM - east.elevationM), Math.max(250, directM)) *
+      180) /
+    Math.PI
+  const terrainFactor = stormMode ? gradeDeg * 1.45 + 3.2 : gradeDeg * 1.7 + 4.1
+  const cap = stormMode ? Math.min(maxSlopeDeg - 0.6, 12.6) : maxSlopeDeg - 0.4
+  return Math.max(2.4, Math.min(cap, terrainFactor))
 }
 
 /**
@@ -59,59 +117,75 @@ function buildCorridorPath(
   const corridor: LatLonTuple[] = [orderedByEastWest[0].coords]
   const hazardsAvoided: string[] = ['Séítah Eolian Sand Ripples']
 
-  const touchesEastHub =
-    orderedByEastWest[0].id === 'butler-landing' ||
-    orderedByEastWest[1].id === 'butler-landing'
-  const crossesDelta =
-    orderedByEastWest[1].id === 'bright-angel' ||
-    orderedByEastWest[1].id === 'three-forks' ||
-    orderedByEastWest[1].id === 'kodiak-butte'
+  const isCustomRoute =
+    !PRESET_WAYPOINT_IDS.has(start.id) || !PRESET_WAYPOINT_IDS.has(target.id)
 
-  if (stormMode) {
-    // Sheltered leeward corridor hugging the northern crater floor rim and delta base wall
-    if (touchesEastHub) {
-      corridor.push([18.4545, 77.4415], [18.4615, 77.4255])
-    }
-    if (crossesDelta) {
-      corridor.push([18.4648, 77.4095], [18.4675, 77.3945])
+  let basePeakSlope: number
+
+  if (isCustomRoute) {
+    basePeakSlope = appendCustomCorridor(
+      corridor,
+      orderedByEastWest[0],
+      orderedByEastWest[1],
+      maxSlopeDeg,
+      stormMode,
+      hazardsAvoided,
+    )
+  } else {
+    const touchesEastHub =
+      orderedByEastWest[0].id === 'butler-landing' ||
+      orderedByEastWest[1].id === 'butler-landing'
+    const crossesDelta =
+      orderedByEastWest[1].id === 'bright-angel' ||
+      orderedByEastWest[1].id === 'three-forks' ||
+      orderedByEastWest[1].id === 'kodiak-butte'
+
+    if (stormMode) {
+      // Sheltered leeward corridor hugging the northern crater floor rim and delta base wall
+      if (touchesEastHub) {
+        corridor.push([18.4545, 77.4415], [18.4615, 77.4255])
+      }
+      if (crossesDelta) {
+        corridor.push([18.4648, 77.4095], [18.4675, 77.3945])
+        if (orderedByEastWest[1].id === 'bright-angel') {
+          corridor.push([18.4775, 77.3795])
+        }
+      }
+      hazardsAvoided.push(
+        'Exposed Plateau Ridges (Dust/Radiation)',
+        'Western Delta Escarpment (>15°)',
+      )
+    } else if (maxSlopeDeg < 14) {
+      // Conservative low-slope switchback avoiding steep delta scarps
+      if (touchesEastHub) {
+        corridor.push([18.4495, 77.436], [18.4535, 77.419])
+      }
+      if (crossesDelta) {
+        corridor.push([18.4588, 77.4045], [18.4665, 77.394], [18.476, 77.381])
+      }
+      hazardsAvoided.push('Western Delta Escarpment (>13° Switchback)')
+    } else {
+      // Standard nominal EVA corridor
+      if (touchesEastHub && orderedByEastWest[1].id !== 'seitah-dunes') {
+        corridor.push([18.4485, 77.4355], [18.4525, 77.4185])
+      }
       if (orderedByEastWest[1].id === 'bright-angel') {
-        corridor.push([18.4775, 77.3795])
+        corridor.push([18.4628, 77.3988], [18.4745, 77.3825])
+      }
+      if (maxSlopeDeg <= 18) {
+        hazardsAvoided.push('Western Delta Steep Scarp (>18°)')
       }
     }
-    hazardsAvoided.push(
-      'Exposed Plateau Ridges (Dust/Radiation)',
-      'Western Delta Escarpment (>15°)',
-    )
-  } else if (maxSlopeDeg < 14) {
-    // Conservative low-slope switchback avoiding steep delta scarps
-    if (touchesEastHub) {
-      corridor.push([18.4495, 77.436], [18.4535, 77.419])
-    }
-    if (crossesDelta) {
-      corridor.push([18.4588, 77.4045], [18.4665, 77.394], [18.476, 77.381])
-    }
-    hazardsAvoided.push('Western Delta Escarpment (>13° Switchback)')
-  } else {
-    // Standard nominal EVA corridor
-    if (touchesEastHub && orderedByEastWest[1].id !== 'seitah-dunes') {
-      corridor.push([18.4485, 77.4355], [18.4525, 77.4185])
-    }
-    if (orderedByEastWest[1].id === 'bright-angel') {
-      corridor.push([18.4628, 77.3988], [18.4745, 77.3825])
-    }
-    if (maxSlopeDeg <= 18) {
-      hazardsAvoided.push('Western Delta Steep Scarp (>18°)')
-    }
+
+    basePeakSlope = stormMode
+      ? Math.min(maxSlopeDeg - 0.8, 12.6)
+      : maxSlopeDeg < 14
+        ? Math.max(8.4, maxSlopeDeg - 0.6)
+        : Math.min(maxSlopeDeg - 0.4, 14.8)
   }
 
   corridor.push(orderedByEastWest[1].coords)
   const finalCoords = reversed ? [...corridor].reverse() : corridor
-
-  const basePeakSlope = stormMode
-    ? Math.min(maxSlopeDeg - 0.8, 12.6)
-    : maxSlopeDeg < 14
-      ? Math.max(8.4, maxSlopeDeg - 0.6)
-      : Math.min(maxSlopeDeg - 0.4, 14.8)
 
   return {
     coords: finalCoords,
@@ -188,9 +262,10 @@ export function planLocalEvaRoute({
   targetWaypointId,
   maxSlopeDeg,
   stormMode,
+  extraWaypoints,
 }: PlanEvaParams): EvaRoutePlan {
-  const start = findWaypoint(startWaypointId)
-  const target = findWaypoint(targetWaypointId)
+  const start = findWaypoint(startWaypointId, extraWaypoints)
+  const target = findWaypoint(targetWaypointId, extraWaypoints)
 
   const { coords, hazardsAvoided, peakSlopeDeg } = buildCorridorPath(
     start,

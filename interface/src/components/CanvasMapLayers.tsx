@@ -7,6 +7,12 @@ import {
   topoLayerToMeters,
 } from '../data/layerScales'
 import { JEZERO_BOUNDS } from '../data/waypoints'
+import {
+  clamp,
+  fetchGrayTile,
+  isInsideJezero,
+  sampleDemMeters,
+} from '../services/molaDem'
 import type { ThermalBandsCount, TopoStepM } from '../types/eva'
 
 type ColorStop = readonly [t: number, r: number, g: number, b: number]
@@ -37,13 +43,6 @@ const ELEV_MIN_M = -2660
 const ELEV_MAX_M = -1880
 const ELEV_SPAN_M = ELEV_MAX_M - ELEV_MIN_M
 
-// Tile cache storing luminance (0..255) buffers for loaded NASA CORS PNGs
-const tileGrayCache = new Map<string, Promise<Uint8Array | null>>()
-
-function clamp(v: number, lo: number, hi: number): number {
-  return v < lo ? lo : v > hi ? hi : v
-}
-
 function samplePalette(
   stops: readonly ColorStop[],
   tInput: number,
@@ -63,114 +62,6 @@ function samplePalette(
   }
   const last = stops[stops.length - 1]
   return [last[1], last[2], last[3]]
-}
-
-function fetchGrayTile(url: string): Promise<Uint8Array | null> {
-  const existing = tileGrayCache.get(url)
-  if (existing) return existing
-
-  const promise = new Promise<Uint8Array | null>((resolve) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => {
-      try {
-        const w = img.width || 256
-        const h = img.height || 256
-        const off = document.createElement('canvas')
-        off.width = w
-        off.height = h
-        const ctx = off.getContext('2d')
-        if (!ctx) {
-          resolve(null)
-          return
-        }
-        ctx.drawImage(img, 0, 0)
-        const { data } = ctx.getImageData(0, 0, w, h)
-        const gray = new Uint8Array(w * h)
-        for (let i = 0; i < gray.length; i++) {
-          gray[i] = data[i * 4]
-        }
-        resolve(gray)
-      } catch {
-        resolve(null)
-      }
-    }
-    img.onerror = () => resolve(null)
-    img.src = url
-  })
-
-  tileGrayCache.set(url, promise)
-  return promise
-}
-
-function cubicHermiteClamped(
-  p0: number,
-  p1: number,
-  p2: number,
-  p3: number,
-  f: number,
-): number {
-  const a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3
-  const b = p0 - 2.5 * p1 + 2 * p2 - 0.5 * p3
-  const c = -0.5 * p0 + 0.5 * p2
-  const val = ((a * f + b) * f + c) * f + p1
-  const minNeighbor = Math.min(p1, p2)
-  const maxNeighbor = Math.max(p1, p2)
-  return clamp(val, minNeighbor - 0.25, maxNeighbor + 0.25)
-}
-
-function sampleDemMeters(
-  dem: Uint8Array,
-  lat: number,
-  lon: number,
-): number {
-  // Source tile is Mars_MOLA z=5 tile (x=45, y=12): 64 cols x 32 rows @ 256px
-  const fx = ((lon + 180) / 360 * 64 - 45) * 256 - 0.5
-  const fy = ((90 - lat) / 180 * 32 - 12) * 256 - 0.5
-
-  const ix = Math.floor(fx)
-  const iy = Math.floor(fy)
-  const tx = fx - ix
-  const ty = fy - iy
-
-  const at = (x: number, y: number) => {
-    const cx = clamp(x, 0, 255)
-    const cy = clamp(y, 0, 255)
-    return dem[cy * 256 + cx]
-  }
-
-  let rowVals0 = 0
-  let rowVals1 = 0
-  let rowVals2 = 0
-  let rowVals3 = 0
-
-  for (let rowOffset = -1; rowOffset <= 2; rowOffset++) {
-    const yy = iy + rowOffset
-    const v = cubicHermiteClamped(
-      at(ix - 1, yy),
-      at(ix, yy),
-      at(ix + 1, yy),
-      at(ix + 2, yy),
-      tx,
-    )
-    if (rowOffset === -1) rowVals0 = v
-    else if (rowOffset === 0) rowVals1 = v
-    else if (rowOffset === 1) rowVals2 = v
-    else rowVals3 = v
-  }
-
-  const demL = cubicHermiteClamped(rowVals0, rowVals1, rowVals2, rowVals3, ty)
-  // Calibrated to Jezero waypoints (Butler Landing L=81 -> -2568m, Bright Angel L=84 -> -2432m)
-  return -2568 + (demL - 81) * (136 / 3)
-}
-
-function isInsideJezero(lat: number, lon: number): boolean {
-  return (
-    lat >= JEZERO_BOUNDS[0][0] &&
-    lat <= JEZERO_BOUNDS[1][0] &&
-    lon >= JEZERO_BOUNDS[0][1] &&
-    lon <= JEZERO_BOUNDS[1][1]
-  )
 }
 
 interface ElevationSettings {

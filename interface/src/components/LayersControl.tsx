@@ -12,6 +12,7 @@ import {
   Moon,
   Mountain,
   Route,
+  ShieldAlert,
   SlidersHorizontal,
   Sun,
   X,
@@ -22,7 +23,6 @@ import {
   thermalLayerToThresholdPct,
   topoLayerToMeters,
 } from '../data/layerScales'
-import { JEZERO_WAYPOINTS } from '../data/waypoints'
 import type {
   ControlCircleId,
   LayerConfig,
@@ -30,6 +30,7 @@ import type {
   RasterAvailabilityMap,
   ThermalBandsCount,
   TopoStepM,
+  Waypoint,
 } from '../types/eva'
 
 interface LayersControlProps {
@@ -42,10 +43,12 @@ interface LayersControlProps {
   onToggleLayer: (id: LayerId) => void
   onChangeOpacity: (id: LayerId, opacity: number) => void
   onUpdateLayer: (id: LayerId, patch: Partial<LayerConfig>) => void
+  waypoints: Waypoint[]
   startWaypointId: string
   targetWaypointId: string
   maxSlopeDeg: number
   stormMode: boolean
+  onToggleStormMode: () => void
   onChangeStart: (id: string) => void
   onChangeTarget: (id: string) => void
   onSwapWaypoints: () => void
@@ -63,10 +66,12 @@ export function LayersControl({
   onToggleLayer,
   onChangeOpacity,
   onUpdateLayer,
+  waypoints,
   startWaypointId,
   targetWaypointId,
   maxSlopeDeg,
   stormMode,
+  onToggleStormMode,
   onChangeStart,
   onChangeTarget,
   onSwapWaypoints,
@@ -93,11 +98,7 @@ export function LayersControl({
     <div className="pointer-events-none absolute bottom-14 left-3 z-[450] flex flex-col items-start">
       {/* Popover Setting Panel Anchored Above Selected Circle */}
       {open && activeCircle && (
-        <div
-          className={`pointer-events-auto mb-3 w-76 rounded-2xl border bg-[#0b111e]/95 p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.8)] backdrop-blur-xl ${
-            stormMode ? 'border-amber-500/45' : 'border-cyan-500/35'
-          }`}
-        >
+        <div className="pointer-events-auto mb-3 w-76 rounded-2xl border border-cyan-500/35 bg-[#0b111e]/95 p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.8)] backdrop-blur-xl">
           {/* Layer Setting Popover (Slope / Geologic / Traverse) */}
           {activeLayer && (
             <div className="space-y-3">
@@ -299,7 +300,7 @@ export function LayersControl({
                   onChange={(e) => onChangeStart(e.target.value)}
                   className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-400 focus:outline-none"
                 >
-                  {JEZERO_WAYPOINTS.map((wp) => (
+                  {waypoints.map((wp) => (
                     <option key={wp.id} value={wp.id}>
                       {wp.name}
                     </option>
@@ -312,7 +313,7 @@ export function LayersControl({
                   htmlFor="circle-target-wp"
                   className="mb-1 block font-mono text-[10px] text-slate-400 uppercase"
                 >
-                  Target Waypoint (or click pin)
+                  Target Waypoint (or click map)
                 </label>
                 <select
                   id="circle-target-wp"
@@ -320,12 +321,79 @@ export function LayersControl({
                   onChange={(e) => onChangeTarget(e.target.value)}
                   className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-400 focus:outline-none"
                 >
-                  {JEZERO_WAYPOINTS.map((wp) => (
+                  {waypoints.map((wp) => (
                     <option key={wp.id} value={wp.id}>
                       {wp.name}
                     </option>
                   ))}
                 </select>
+              </div>
+            </div>
+          )}
+
+          {/* Max Suit Slope Limit Popover */}
+          {activeCircle === 'maxSlope' && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between font-mono text-[11px]">
+                <span className="font-bold tracking-wider text-slate-100 uppercase">
+                  Suit Max Slope Limit
+                </span>
+                <span className="font-bold text-cyan-300">{maxSlopeDeg}°</span>
+              </div>
+              <input
+                type="range"
+                min={8}
+                max={25}
+                step={1}
+                value={maxSlopeDeg}
+                onChange={(e) => onChangeMaxSlope(Number(e.target.value))}
+                className="hud-range w-full cursor-pointer accent-cyan-400"
+              />
+              <div className="flex justify-between font-mono text-[10px] text-slate-500">
+                <span>8° Safe</span>
+                <span>15° Nominal</span>
+                <span>25° Limit</span>
+              </div>
+              <p className="font-mono text-[10px] leading-relaxed text-slate-400">
+                Constrains preview traverse geometry; Python backend will run
+                DEM slope verification.
+              </p>
+            </div>
+          )}
+
+          {/* Solar Storm / Dust Alert Popover */}
+          {activeCircle === 'stormMode' && (
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-mono text-[11px] font-bold tracking-wider text-slate-100 uppercase">
+                    Solar Storm / Dust Alert
+                  </h3>
+                  <p className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                    Switches traverse calculation to leeward shelter routing and
+                    updates storm MEDA/RAD telemetry readouts.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={stormMode}
+                  onClick={onToggleStormMode}
+                  className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 font-mono text-[10px] font-bold transition ${
+                    stormMode
+                      ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
+                      : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500'
+                  }`}
+                >
+                  <ShieldAlert className="h-3 w-3" />
+                  {stormMode ? 'ON' : 'OFF'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/70 px-2.5 py-1.5 font-mono text-[10px]">
+                <span className="text-slate-400">TRAVERSE ROUTING</span>
+                <span className="font-semibold text-cyan-300">
+                  {stormMode ? 'LEEWARD SHELTER (TAU 3.4)' : 'NOMINAL EVA'}
+                </span>
               </div>
             </div>
           )}
@@ -340,18 +408,13 @@ export function LayersControl({
           onClick={onToggleOpen}
           title="Open Overlay & EVA Controls"
           aria-label="Open Overlay & EVA Controls"
-          className={`pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_8px_28px_rgba(0,0,0,0.75)] backdrop-blur-xl transition-all duration-200 hover:scale-105 ${
-            'border-cyan-400/60 bg-[#0b111e]/95 text-cyan-300 shadow-cyan-500/20'
-          }`}
+          className="pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/60 bg-[#0b111e]/95 text-cyan-300 shadow-[0_8px_28px_rgba(0,0,0,0.75)] shadow-cyan-500/20 backdrop-blur-xl transition-all duration-200 hover:scale-105"
         >
           <SlidersHorizontal className="h-5 w-5" />
 
         </button>
       ) : (
-        <div
-          className={`pointer-events-auto flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-1.5 rounded-3xl border p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.82)] backdrop-blur-xl transition-all duration-200 sm:flex-nowrap sm:rounded-full ${'border-cyan-500/40 bg-[#0b111e]/95'
-          }`}
-        >
+        <div className="pointer-events-auto flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-1.5 rounded-3xl border border-cyan-500/40 bg-[#0b111e]/95 p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.82)] backdrop-blur-xl transition-all duration-200 sm:flex-nowrap sm:rounded-full">
           {/* Close Trigger Circle */}
           <button
             type="button"
@@ -403,7 +466,17 @@ export function LayersControl({
             </span>
           </CircleNode>
 
-          {/* 6. Start EVA Route & Open Briefing Mini-Page */}
+          {/* 6. Solar Storm / Dust Alert Circle */}
+          <CircleNode
+            active={activeCircle === 'stormMode'}
+            enabled={stormMode}
+            label={`Solar Storm / Dust Alert (${stormMode ? 'ON' : 'OFF'})`}
+            onClick={() => handleCircleClick('stormMode')}
+          >
+            <ShieldAlert className="h-4 w-4" />
+          </CircleNode>
+
+          {/* 7. Start EVA Route & Open Briefing Mini-Page */}
           <button
             type="button"
             onClick={handleStartRouteClick}
@@ -412,9 +485,7 @@ export function LayersControl({
             className={`flex h-10 items-center gap-1.5 rounded-full border px-3.5 font-mono text-[11px] font-bold tracking-wider transition hover:scale-105 ${
               routePulse
                 ? 'border-emerald-400 bg-emerald-500/30 text-emerald-200'
-                : stormMode
-                  ? 'border-amber-400/75 bg-amber-500/25 text-amber-100 hover:bg-amber-500/35'
-                  : 'border-cyan-400/75 bg-cyan-500/25 text-cyan-100 hover:bg-cyan-500/35'
+                : 'border-cyan-400/75 bg-cyan-500/25 text-cyan-100 hover:bg-cyan-500/35'
             }`}
           >
             {routePulse ? (

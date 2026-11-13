@@ -1,16 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LayersControl } from './components/LayersControl'
 import { MarsMap } from './components/MarsMap'
 import { MissionHeader } from './components/MissionHeader'
 import { TelemetryDrawer } from './components/TelemetryDrawer'
-import { INITIAL_LAYERS, JEZERO_WAYPOINTS } from './data/waypoints'
+import {
+  INITIAL_LAYERS,
+  JEZERO_WAYPOINTS,
+  MARS_TREK_MOLA_ELEVATION_WMTS_URL,
+} from './data/waypoints'
 import { planLocalEvaRoute } from './services/localRoutePlanner'
+import { fetchGrayTile } from './services/molaDem'
+import {
+  createCustomWaypointFromCoords,
+  withElevationEstimate,
+} from './services/siteInspector'
 import type {
   ControlCircleId,
   EvaRoutePlan,
+  LatLonTuple,
   LayerConfig,
   LayerId,
   RasterAvailabilityMap,
+  Waypoint,
 } from './types/eva'
 
 const INITIAL_START_ID = 'butler-landing'
@@ -53,6 +64,9 @@ function App() {
   const [maxSlopeDeg, setMaxSlopeDeg] = useState(INITIAL_MAX_SLOPE)
   const [stormMode, setStormMode] = useState(false)
 
+  const [probeWaypoint, setProbeWaypoint] = useState<Waypoint | null>(null)
+  const [customEndpoints, setCustomEndpoints] = useState<Waypoint[]>([])
+
   const [routePlan, setRoutePlan] = useState<EvaRoutePlan>(() =>
     planLocalEvaRoute({
       startWaypointId: INITIAL_START_ID,
@@ -62,8 +76,9 @@ function App() {
     }),
   )
 
-  // Detect whether Python-exported raster overlays exist in public/layers/
+  // Detect Python slope raster availability and prefetch MOLA DEM buffer for click telemetry
   useEffect(() => {
+    let cancelled = false
     const cancelSlope = probeImageExists('/layers/slope_heatmap.png', (ok) => {
       setRasterStatus((prev) => ({
         ...prev,
@@ -71,16 +86,31 @@ function App() {
       }))
     })
 
+    void fetchGrayTile(MARS_TREK_MOLA_ELEVATION_WMTS_URL).then((dem) => {
+      if (cancelled || !dem) return
+      setProbeWaypoint((prev) =>
+        prev ? withElevationEstimate(prev, dem) : null,
+      )
+      setCustomEndpoints((prev) =>
+        prev.map((wp) => withElevationEstimate(wp, dem)),
+      )
+    })
+
     return () => {
+      cancelled = true
       cancelSlope()
     }
   }, [])
 
+  const allWaypoints = useMemo(
+    () => [...JEZERO_WAYPOINTS, ...customEndpoints],
+    [customEndpoints],
+  )
+
   const startWaypoint =
-    JEZERO_WAYPOINTS.find((wp) => wp.id === startWaypointId) ??
-    JEZERO_WAYPOINTS[0]
+    allWaypoints.find((wp) => wp.id === startWaypointId) ?? JEZERO_WAYPOINTS[0]
   const targetWaypoint =
-    JEZERO_WAYPOINTS.find((wp) => wp.id === targetWaypointId) ??
+    allWaypoints.find((wp) => wp.id === targetWaypointId) ??
     JEZERO_WAYPOINTS[JEZERO_WAYPOINTS.length - 1]
 
   const recalculateRoute = (overrides?: {
@@ -88,6 +118,7 @@ function App() {
     targetId?: string
     slopeDeg?: number
     storm?: boolean
+    extraWaypoints?: Waypoint[]
   }) => {
     setRoutePlan(
       planLocalEvaRoute({
@@ -95,6 +126,7 @@ function App() {
         targetWaypointId: overrides?.targetId ?? targetWaypointId,
         maxSlopeDeg: overrides?.slopeDeg ?? maxSlopeDeg,
         stormMode: overrides?.storm ?? stormMode,
+        extraWaypoints: overrides?.extraWaypoints ?? customEndpoints,
       }),
     )
   }
@@ -140,23 +172,79 @@ function App() {
     setSelectedWaypointId(waypointId)
   }
 
+  const handleDropMapWaypoint = (coords: LatLonTuple) => {
+    const customPin = createCustomWaypointFromCoords(coords, 'custom-probe')
+    setProbeWaypoint(customPin)
+    setSelectedWaypointId(customPin.id)
+  }
+
+  const promoteProbe = (role: 'start' | 'target', probe: Waypoint) => {
+    const otherId = role === 'start' ? targetWaypointId : startWaypointId
+    const slotId = otherId === 'custom-a' ? 'custom-b' : 'custom-a'
+    const promoted: Waypoint = {
+      ...probe,
+      id: slotId,
+      shortLabel: 'PIN // CUSTOM',
+    }
+    const nextCustom = [
+      ...customEndpoints.filter((wp) => wp.id === otherId),
+      promoted,
+    ]
+    setCustomEndpoints(nextCustom)
+    setProbeWaypoint(null)
+    setSelectedWaypointId(slotId)
+    if (role === 'start') {
+      setStartWaypointId(slotId)
+      recalculateRoute({ startId: slotId, extraWaypoints: nextCustom })
+    } else {
+      setTargetWaypointId(slotId)
+      recalculateRoute({ targetId: slotId, extraWaypoints: nextCustom })
+    }
+  }
+
+  const pruneCustomEndpoints = (
+    nextStartId: string,
+    nextTargetId: string,
+  ): Waypoint[] => {
+    const nextCustom = customEndpoints.filter(
+      (wp) => wp.id === nextStartId || wp.id === nextTargetId,
+    )
+    setCustomEndpoints(nextCustom)
+    return nextCustom
+  }
+
   const handleChangeStart = (id: string) => {
+    if (id === 'custom-probe' && probeWaypoint) {
+      promoteProbe('start', probeWaypoint)
+      return
+    }
     if (id === targetWaypointId) {
       handleSwapWaypoints()
       return
     }
+    const nextCustom = pruneCustomEndpoints(id, targetWaypointId)
     setStartWaypointId(id)
-    recalculateRoute({ startId: id })
+    recalculateRoute({ startId: id, extraWaypoints: nextCustom })
   }
 
   const handleChangeTarget = (id: string) => {
+    if (id === 'custom-probe' && probeWaypoint) {
+      promoteProbe('target', probeWaypoint)
+      return
+    }
     if (id === startWaypointId) {
       handleSwapWaypoints()
       return
     }
+    const nextCustom = pruneCustomEndpoints(startWaypointId, id)
     setTargetWaypointId(id)
     setSelectedWaypointId(id)
-    recalculateRoute({ targetId: id })
+    recalculateRoute({ targetId: id, extraWaypoints: nextCustom })
+  }
+
+  const handleChangeMaxSlope = (nextSlope: number) => {
+    setMaxSlopeDeg(nextSlope)
+    recalculateRoute({ slopeDeg: nextSlope })
   }
 
   const handleStartRoute = () => {
@@ -166,11 +254,10 @@ function App() {
   }
 
   const handleStartRouteFromPin = (waypointId: string) => {
-    setSelectedWaypointId(waypointId)
     if (waypointId !== startWaypointId && waypointId !== targetWaypointId) {
-      setTargetWaypointId(waypointId)
-      recalculateRoute({ targetId: waypointId })
+      handleChangeTarget(waypointId)
     } else {
+      setSelectedWaypointId(waypointId)
       recalculateRoute()
     }
     setActiveControlCircle(null)
@@ -197,25 +284,21 @@ function App() {
       <MissionHeader
         solLabel="SOL 1428 • 14:32 LMST"
         stormMode={stormMode}
-        onToggleStormMode={handleToggleStormMode}
-        rasterStatus={rasterStatus}
-        onFocusLayersPanel={() => {
-          setControlsOpen(true)
-          setActiveControlCircle('slopeHeatmap')
-        }}
         onOpenBriefing={handleOpenBriefing}
       />
 
       <main className="relative flex min-h-0 flex-1 overflow-hidden">
         <MarsMap
           layers={layers}
-          rasterStatus={rasterStatus}
           routePlan={routePlan}
+          waypoints={allWaypoints}
+          probeWaypoint={probeWaypoint}
           startWaypointId={startWaypointId}
           targetWaypointId={targetWaypointId}
           selectedWaypointId={selectedWaypointId}
           stormMode={stormMode}
           onSelectWaypoint={handleSelectMapWaypoint}
+          onDropMapWaypoint={handleDropMapWaypoint}
           onSetStart={handleChangeStart}
           onSetTarget={handleChangeTarget}
           onStartRouteFromPin={handleStartRouteFromPin}
@@ -231,14 +314,16 @@ function App() {
           onToggleLayer={handleToggleLayer}
           onChangeOpacity={handleChangeOpacity}
           onUpdateLayer={handleUpdateLayer}
+          waypoints={allWaypoints}
           startWaypointId={startWaypointId}
           targetWaypointId={targetWaypointId}
           maxSlopeDeg={maxSlopeDeg}
           stormMode={stormMode}
+          onToggleStormMode={handleToggleStormMode}
           onChangeStart={handleChangeStart}
           onChangeTarget={handleChangeTarget}
           onSwapWaypoints={handleSwapWaypoints}
-          onChangeMaxSlope={setMaxSlopeDeg}
+          onChangeMaxSlope={handleChangeMaxSlope}
           onStartRoute={handleStartRoute}
         />
 
@@ -248,7 +333,6 @@ function App() {
           startWaypoint={startWaypoint}
           targetWaypoint={targetWaypoint}
           routePlan={routePlan}
-          stormMode={stormMode}
           onSwapWaypoints={handleSwapWaypoints}
         />
       </main>

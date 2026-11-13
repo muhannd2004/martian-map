@@ -41,6 +41,7 @@ import type {
 interface MarsMapProps {
   layers: LayerConfig[]
   routePlan: EvaRoutePlan
+  routeLoading: boolean
   waypoints: Waypoint[]
   probeWaypoint: Waypoint | null
   startWaypointId: string
@@ -412,6 +413,7 @@ function MapBoundsManager() {
 export function MarsMap({
   layers,
   routePlan,
+  routeLoading,
   waypoints,
   probeWaypoint,
   startWaypointId,
@@ -663,12 +665,25 @@ export function MarsMap({
       </div>
 
       {/* Top-Center Route Advisory Overlay */}
-      <div className="pointer-events-none absolute top-3 left-1/2 z-[400] -translate-x-1/2">
+      <div className="pointer-events-none absolute top-3 left-1/2 z-[400] -translate-x-1/2 flex flex-col items-center gap-1.5">
         <div className="rounded-full border border-cyan-500/35 bg-[#090d16]/85 px-3.5 py-1 font-mono text-[11px] text-cyan-200 shadow-lg backdrop-blur-md">
           {stormMode
             ? `STORM SHELTER ROUTE • MAX SLOPE ≤ ${routePlan.maxSlopeLimitDeg}°`
             : `NOMINAL ROUTE • MAX SLOPE ≤ ${routePlan.maxSlopeLimitDeg}°`}
         </div>
+        {routeLoading ? (
+          <div className="rounded-full border border-amber-400/50 bg-amber-500/15 px-3 py-0.5 font-mono text-[10px] text-amber-300 shadow backdrop-blur-md animate-pulse">
+            ⟳ COMPUTING DEM PATH…
+          </div>
+        ) : routePlan.slopeSource === 'python-backend' ? (
+          <div className="rounded-full border border-emerald-400/50 bg-emerald-500/15 px-3 py-0.5 font-mono text-[10px] text-emerald-300 shadow backdrop-blur-md">
+            ✓ DEM SHORTEST PATH
+          </div>
+        ) : (
+          <div className="rounded-full border border-slate-500/40 bg-slate-800/60 px-3 py-0.5 font-mono text-[10px] text-slate-400 shadow backdrop-blur-md">
+            LOCAL PREVIEW
+          </div>
+        )}
       </div>
     </div>
   )

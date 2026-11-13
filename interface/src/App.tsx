@@ -9,6 +9,7 @@ import {
   MARS_TREK_MOLA_ELEVATION_WMTS_URL,
 } from './data/waypoints'
 import { planLocalEvaRoute } from './services/localRoutePlanner'
+import { fetchBackendRoute } from './services/backendRoute'
 import { fetchGrayTile } from './services/molaDem'
 import {
   createCustomWaypointFromCoords,
@@ -75,6 +76,7 @@ function App() {
       stormMode: false,
     }),
   )
+  const [routeLoading, setRouteLoading] = useState(false)
 
   // Detect Python slope raster availability and prefetch MOLA DEM buffer for click telemetry
   useEffect(() => {
@@ -120,15 +122,23 @@ function App() {
     storm?: boolean
     extraWaypoints?: Waypoint[]
   }) => {
-    setRoutePlan(
-      planLocalEvaRoute({
-        startWaypointId: overrides?.startId ?? startWaypointId,
-        targetWaypointId: overrides?.targetId ?? targetWaypointId,
-        maxSlopeDeg: overrides?.slopeDeg ?? maxSlopeDeg,
-        stormMode: overrides?.storm ?? stormMode,
-        extraWaypoints: overrides?.extraWaypoints ?? customEndpoints,
-      }),
-    )
+    const params = {
+      startWaypointId: overrides?.startId ?? startWaypointId,
+      targetWaypointId: overrides?.targetId ?? targetWaypointId,
+      maxSlopeDeg: overrides?.slopeDeg ?? maxSlopeDeg,
+      stormMode: overrides?.storm ?? stormMode,
+      extraWaypoints: overrides?.extraWaypoints ?? customEndpoints,
+    }
+    const extra = overrides?.extraWaypoints ?? customEndpoints
+    const all = [...JEZERO_WAYPOINTS, ...extra]
+    const s = all.find((wp) => wp.id === params.startWaypointId) ?? JEZERO_WAYPOINTS[0]
+    const t = all.find((wp) => wp.id === params.targetWaypointId) ?? JEZERO_WAYPOINTS[JEZERO_WAYPOINTS.length - 1]
+    setRoutePlan(planLocalEvaRoute(params))
+    setRouteLoading(true)
+    void fetchBackendRoute(s, t, params).then((plan) => {
+      setRoutePlan(plan)
+      setRouteLoading(false)
+    })
   }
 
   const handleToggleLayer = (id: LayerId) => {
@@ -291,6 +301,7 @@ function App() {
         <MarsMap
           layers={layers}
           routePlan={routePlan}
+          routeLoading={routeLoading}
           waypoints={allWaypoints}
           probeWaypoint={probeWaypoint}
           startWaypointId={startWaypointId}

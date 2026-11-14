@@ -13,7 +13,7 @@ interface WaypointMediaViewerProps {
 
 /**
  * Unified waypoint visual viewer:
- * - Renders an interactive WebGL 360° panorama for stations with a 360 mosaic (`kodiak-butte`, `seitah-dunes`)
+ * - Renders an interactive WebGL 360° panorama for stations with a 360 mosaic (`butler-landing`, `kodiak-butte`, `seitah-dunes`)
  * - Renders a coordinate-centered high-resolution zoomed-in HiRISE (25cm/px) orbital view for all other sites
  * - Provides a document-body portal modal so fullscreen works cleanly from inside Leaflet popups
  */

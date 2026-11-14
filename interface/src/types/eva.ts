@@ -58,6 +58,9 @@ export type LayerId =
   | 'molaElevation'
   | 'themisDayIr'
   | 'themisNightIr'
+  | 'tesPyroxene'
+  | 'tesPlagioclase'
+  | 'tesDust'
   | 'slopeHeatmap'
   | 'geologicZones'
   | 'perseveranceTraverse'
@@ -67,6 +70,7 @@ export type ControlCircleId = LayerId | 'waypoints' | 'maxSlope' | 'stormMode'
 export type LayerKind =
   | 'mola-dem'
   | 'themis-thermal'
+  | 'tes-spectral'
   | 'local-raster'
   | 'vector'
 
@@ -78,6 +82,7 @@ export type RasterAvailabilityMap = Record<LocalRasterKey, RasterLoadStatus>
 
 export type TopoStepM = 25 | 50 | 100
 export type ThermalBandsCount = 8 | 12 | 16
+export type SpectralPalette = 'pyroxene' | 'plagioclase' | 'dust'
 
 export interface LayerConfig {
   id: LayerId
@@ -94,6 +99,10 @@ export interface LayerConfig {
   thermalMinLayer?: number
   thermalBands?: ThermalBandsCount
   thermalRawRange?: [number, number]
+  spectralMinLayer?: number
+  spectralBands?: ThermalBandsCount
+  spectralRawRange?: [number, number]
+  spectralPalette?: SpectralPalette
   zIndex?: number
   localKey?: LocalRasterKey
   localPath?: string

@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Keep oversized raw assets locally without tripping GitHub's 100 MiB file limit
+src/assets/butler-landing.jpg
+

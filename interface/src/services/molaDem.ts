@@ -13,12 +13,9 @@ export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v
 }
 
-/** Load and cache a grayscale luminance buffer from a CORS-enabled NASA PNG tile. */
-export function fetchGrayTile(url: string): Promise<Uint8Array | null> {
-  const existing = tileGrayCache.get(url)
-  if (existing) return existing
-
-  const promise = new Promise<Uint8Array | null>((resolve) => {
+/** Load raw RGBA ImageData from a CORS-enabled NASA PNG/JPG tile. */
+export function loadCorsTileImageData(url: string): Promise<ImageData | null> {
+  return new Promise<ImageData | null>((resolve) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
@@ -34,19 +31,30 @@ export function fetchGrayTile(url: string): Promise<Uint8Array | null> {
           return
         }
         ctx.drawImage(img, 0, 0)
-        const { data } = ctx.getImageData(0, 0, w, h)
-        const gray = new Uint8Array(w * h)
-        for (let i = 0; i < gray.length; i++) {
-          gray[i] = data[i * 4]
-        }
-        resolvedGrayCache.set(url, gray)
-        resolve(gray)
+        resolve(ctx.getImageData(0, 0, w, h))
       } catch {
         resolve(null)
       }
     }
     img.onerror = () => resolve(null)
     img.src = url
+  })
+}
+
+/** Load and cache a grayscale luminance buffer from a CORS-enabled NASA PNG tile. */
+export function fetchGrayTile(url: string): Promise<Uint8Array | null> {
+  const existing = tileGrayCache.get(url)
+  if (existing) return existing
+
+  const promise = loadCorsTileImageData(url).then((imgData) => {
+    if (!imgData) return null
+    const { data, width, height } = imgData
+    const gray = new Uint8Array(width * height)
+    for (let i = 0; i < gray.length; i++) {
+      gray[i] = data[i * 4]
+    }
+    resolvedGrayCache.set(url, gray)
+    return gray
   })
 
   tileGrayCache.set(url, promise)
@@ -74,26 +82,23 @@ function cubicHermiteClamped(
   return clamp(val, minNeighbor - 0.25, maxNeighbor + 0.25)
 }
 
-/** Sample calibrated Jezero elevation (meters) from the z=5 MOLA luminance buffer. */
-export function sampleDemMeters(
-  dem: Uint8Array,
-  lat: number,
-  lon: number,
+/** Bicubic Catmull-Rom interpolation over a 2D numeric buffer with edge clamping. */
+export function bicubicSampleGrid(
+  grid: ArrayLike<number>,
+  width: number,
+  height: number,
+  fx: number,
+  fy: number,
 ): number {
-  // Source tile is Mars_MOLA z=5 tile (x=45, y=12): 64 cols x 32 rows @ 256px
-  const fx = ((lon + 180) / 360 * 64 - 45) * 256 - 0.5
-  const fy = ((90 - lat) / 180 * 32 - 12) * 256 - 0.5
-
   const ix = Math.floor(fx)
   const iy = Math.floor(fy)
   const tx = fx - ix
   const ty = fy - iy
+  const maxX = width - 1
+  const maxY = height - 1
 
-  const at = (x: number, y: number) => {
-    const cx = clamp(x, 0, 255)
-    const cy = clamp(y, 0, 255)
-    return dem[cy * 256 + cx]
-  }
+  const at = (x: number, y: number) =>
+    grid[clamp(y, 0, maxY) * width + clamp(x, 0, maxX)]
 
   let rowVals0 = 0
   let rowVals1 = 0
@@ -115,7 +120,19 @@ export function sampleDemMeters(
     else rowVals3 = v
   }
 
-  const demL = cubicHermiteClamped(rowVals0, rowVals1, rowVals2, rowVals3, ty)
+  return cubicHermiteClamped(rowVals0, rowVals1, rowVals2, rowVals3, ty)
+}
+
+/** Sample calibrated Jezero elevation (meters) from the z=5 MOLA luminance buffer. */
+export function sampleDemMeters(
+  dem: Uint8Array,
+  lat: number,
+  lon: number,
+): number {
+  // Source tile is Mars_MOLA z=5 tile (x=45, y=12): 64 cols x 32 rows @ 256px
+  const fx = ((lon + 180) / 360 * 64 - 45) * 256 - 0.5
+  const fy = ((90 - lat) / 180 * 32 - 12) * 256 - 0.5
+  const demL = bicubicSampleGrid(dem, 256, 256, fx, fy)
   // Calibrated to Jezero waypoints (Butler Landing L=81 -> -2568m, Bright Angel L=84 -> -2432m)
   return -2568 + (demL - 81) * (136 / 3)
 }

@@ -20,6 +20,7 @@ import {
 } from '../data/geologicUnits'
 import {
   JezeroElevationLayer,
+  TesSpectralCanvasLayer,
   ThemisThermalCanvasLayer,
 } from './CanvasMapLayers'
 import { WaypointMediaViewer } from './WaypointMediaViewer'
@@ -527,6 +528,23 @@ export function MarsMap({
                 rawRange={layer.thermalRawRange ?? [32, 190]}
                 maxNativeZoom={layer.maxNativeZoom ?? 9}
                 zIndex={layer.zIndex ?? 11}
+                attribution={layer.attribution}
+              />
+            )
+          }
+
+          if (layer.kind === 'tes-spectral') {
+            return (
+              <TesSpectralCanvasLayer
+                key={layer.id}
+                wmtsUrl={layer.wmtsUrl}
+                opacity={layer.opacity}
+                minLayerInt={layer.spectralMinLayer ?? 0}
+                bands={layer.spectralBands ?? 12}
+                rawRange={layer.spectralRawRange ?? [0, 1]}
+                palette={layer.spectralPalette ?? 'pyroxene'}
+                maxNativeZoom={layer.maxNativeZoom ?? 13}
+                zIndex={layer.zIndex ?? 13}
                 attribution={layer.attribution}
               />
             )

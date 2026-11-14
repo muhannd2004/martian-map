@@ -7,6 +7,7 @@ import {
   EyeOff,
   Flame,
   Footprints,
+  Gem,
   Hexagon,
   MapPin,
   Moon,
@@ -14,12 +15,16 @@ import {
   Route,
   ShieldAlert,
   SlidersHorizontal,
+  Sparkles,
   Sun,
+  Wind,
   X,
 } from 'lucide-react'
 import {
+  SPECTRAL_LAYER_MAX,
   THERMAL_LAYER_MAX,
   TOPO_LAYER_MAX,
+  spectralLayerToThresholdPct,
   thermalLayerToThresholdPct,
   topoLayerToMeters,
 } from '../data/layerScales'
@@ -28,10 +33,43 @@ import type {
   LayerConfig,
   LayerId,
   RasterAvailabilityMap,
+  SpectralPalette,
   ThermalBandsCount,
   TopoStepM,
   Waypoint,
 } from '../types/eva'
+
+const SPECTRAL_UI_META: Record<
+  SpectralPalette,
+  {
+    legendGradientCss: string
+    labels: readonly [string, string, string]
+    accentClass: string
+    unitWord: string
+  }
+> = {
+  pyroxene: {
+    legendGradientCss:
+      'linear-gradient(to right, #064e3b, #0d9488, #10b981, #a3e635, #facc15, #f59e0b)',
+    labels: ['Low Mafic', 'Mixed Basalt', 'Rich Pyroxene'],
+    accentClass: 'accent-emerald-400',
+    unitWord: 'ABUNDANCE',
+  },
+  plagioclase: {
+    legendGradientCss:
+      'linear-gradient(to right, #312e81, #6d28d9, #a855f7, #ec4899, #fb7185, #fdba74)',
+    labels: ['Low Crustal', 'Intermediate', 'Rich Feldspar'],
+    accentClass: 'accent-fuchsia-400',
+    unitWord: 'ABUNDANCE',
+  },
+  dust: {
+    legendGradientCss:
+      'linear-gradient(to right, #334155, #64748b, #b48a5c, #d97706, #ea580c, #fdba74)',
+    labels: ['Exposed Rock', 'Thin Silt', 'Thick Dust'],
+    accentClass: 'accent-amber-400',
+    unitWord: 'DUST',
+  },
+}
 
 interface LayersControlProps {
   open: boolean
@@ -225,6 +263,60 @@ export function LayersControl({
                   />
                 </div>
               )}
+
+              {activeLayer.kind === 'tes-spectral' && (() => {
+                const paletteKey = activeLayer.spectralPalette ?? 'pyroxene'
+                const meta = SPECTRAL_UI_META[paletteKey]
+                const minLayer = activeLayer.spectralMinLayer ?? 0
+                return (
+                  <div className="space-y-2.5">
+                    <div>
+                      <div
+                        className="h-2.5 w-full rounded-full"
+                        style={{ background: meta.legendGradientCss }}
+                      />
+                      <div className="mt-1 flex justify-between font-mono text-[9px] text-slate-400">
+                        <span>{meta.labels[0]}</span>
+                        <span>{meta.labels[1]}</span>
+                        <span className="text-slate-200">{meta.labels[2]}</span>
+                      </div>
+                    </div>
+
+                    <IntegerLayerSlicer
+                      title="SPECTRAL LAYER"
+                      value={minLayer}
+                      max={SPECTRAL_LAYER_MAX}
+                      badgeText={
+                        minLayer === 0
+                          ? `ALL ${meta.unitWord} (0%+)`
+                          : `≥ ${spectralLayerToThresholdPct(minLayer)}% ${meta.unitWord}`
+                      }
+                      accentClass={meta.accentClass}
+                      presets={[
+                        { label: '0: All', value: 0 },
+                        { label: '4: ≥52%', value: 4 },
+                        { label: '7: ≥85%', value: 7 },
+                      ]}
+                      onChange={(next) =>
+                        onUpdateLayer(activeLayer.id, { spectralMinLayer: next })
+                      }
+                    />
+
+                    <DerivationSelector<ThermalBandsCount>
+                      label="SPECTRAL DERIVATION"
+                      value={activeLayer.spectralBands ?? 12}
+                      options={[
+                        { value: 8, label: '8 Tiers' },
+                        { value: 12, label: '12 Tiers' },
+                        { value: 16, label: '16 Tiers' },
+                      ]}
+                      onChange={(bands) =>
+                        onUpdateLayer(activeLayer.id, { spectralBands: bands })
+                      }
+                    />
+                  </div>
+                )
+              })()}
 
               {activeLayer.id === 'slopeHeatmap' && slopeMissing && (
                 <div className="flex items-start gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 p-2 font-mono text-[10px] text-amber-300">
@@ -550,6 +642,12 @@ function renderLayerIcon(layerId: LayerId): React.ReactNode {
       return <Moon className="h-4 w-4" />
     case 'themisDayIr':
       return <Sun className="h-4 w-4" />
+    case 'tesPyroxene':
+      return <Gem className="h-4 w-4" />
+    case 'tesPlagioclase':
+      return <Sparkles className="h-4 w-4" />
+    case 'tesDust':
+      return <Wind className="h-4 w-4" />
     case 'slopeHeatmap':
       return <Flame className="h-4 w-4" />
     case 'geologicZones':

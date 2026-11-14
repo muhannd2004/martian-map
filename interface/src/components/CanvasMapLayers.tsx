@@ -3,6 +3,7 @@ import L from 'leaflet'
 import type { Coords, DoneCallback } from 'leaflet'
 import { useMap } from 'react-leaflet'
 import {
+  spectralLayerToThresholdPct,
   thermalLayerToThresholdPct,
   topoLayerToMeters,
 } from '../data/layerScales'
@@ -13,7 +14,12 @@ import {
   isInsideJezero,
   sampleDemMeters,
 } from '../services/molaDem'
-import type { ThermalBandsCount, TopoStepM } from '../types/eva'
+import { fetchTesScalarTile, sampleTesScalar } from '../services/tesSpectral'
+import type {
+  SpectralPalette,
+  ThermalBandsCount,
+  TopoStepM,
+} from '../types/eva'
 
 type ColorStop = readonly [t: number, r: number, g: number, b: number]
 
@@ -38,6 +44,48 @@ const THERMAL_PALETTE: readonly ColorStop[] = [
   [0.88, 239, 68, 68], // Hot Red (rocky ground)
   [1.0, 220, 38, 38], // Peak Red (high thermal inertia)
 ]
+
+const SPECTRAL_PALETTES: Record<
+  SpectralPalette,
+  {
+    stops: readonly ColorStop[]
+    cutoffRgba: readonly [number, number, number, number]
+  }
+> = {
+  pyroxene: {
+    stops: [
+      [0.0, 6, 78, 59], // Low Mafic Deep Emerald
+      [0.22, 13, 148, 136], // Rich Teal
+      [0.45, 16, 185, 129], // Vivid Jade
+      [0.68, 163, 230, 53], // Luminous Lime-Chartreuse
+      [0.86, 250, 204, 21], // High-Calcium Gold
+      [1.0, 245, 158, 11], // Peak Clinopyroxene Amber
+    ],
+    cutoffRgba: [167, 243, 208, 240],
+  },
+  plagioclase: {
+    stops: [
+      [0.0, 49, 46, 129], // Deep Indigo
+      [0.24, 109, 40, 217], // Royal Violet
+      [0.48, 168, 85, 247], // Orchid Purple
+      [0.72, 236, 72, 153], // Vivid Feldspar Magenta
+      [0.88, 251, 113, 133], // Bright Rose Pink
+      [1.0, 253, 186, 116], // Peak Plagioclase Rose-Gold
+    ],
+    cutoffRgba: [245, 208, 254, 240],
+  },
+  dust: {
+    stops: [
+      [0.0, 51, 65, 85], // Exposed Slate Bedrock
+      [0.24, 100, 116, 139], // Cool Silt Grey
+      [0.48, 180, 138, 92], // Tan Loess Silt
+      [0.72, 217, 119, 6], // Warm Martian Ochre
+      [0.88, 234, 88, 12], // Heavy Dust Mantle Orange
+      [1.0, 253, 186, 116], // Peak Fine Dust Maxima
+    ],
+    cutoffRgba: [253, 230, 138, 240],
+  },
+}
 
 const ELEV_MIN_M = -2660
 const ELEV_MAX_M = -1880
@@ -227,6 +275,102 @@ interface ThermalSettings {
   rawRange: [number, number]
 }
 
+interface BandedScalarRenderOptions {
+  pixels: Uint8ClampedArray
+  width: number
+  height: number
+  minLayerInt: number
+  minNorm: number
+  bands: ThermalBandsCount
+  palette: readonly ColorStop[]
+  cutoffRgba: readonly [number, number, number, number]
+  normAt: (px: number, py: number) => number
+  includePixel?: (px: number, py: number) => boolean
+}
+
+function renderBandedScalarTile({
+  pixels,
+  width,
+  height,
+  minLayerInt,
+  minNorm,
+  bands,
+  palette,
+  cutoffRgba,
+  normAt,
+  includePixel,
+}: BandedScalarRenderOptions): void {
+  const majorEvery = Math.max(2, Math.round(bands / 4))
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const outIdx = (y * width + x) * 4
+      if (includePixel && !includePixel(x, y)) {
+        pixels[outIdx + 3] = 0
+        continue
+      }
+
+      const norm = normAt(x, y)
+      const normRight = normAt(x + 1, y)
+      const normDown = normAt(x, y + 1)
+
+      if (minLayerInt > 0 && norm < minNorm) {
+        const touchesCutoff =
+          normRight >= minNorm ||
+          normDown >= minNorm ||
+          normAt(x - 1, y) >= minNorm ||
+          normAt(x, y - 1) >= minNorm
+        if (touchesCutoff) {
+          pixels[outIdx] = cutoffRgba[0]
+          pixels[outIdx + 1] = cutoffRgba[1]
+          pixels[outIdx + 2] = cutoffRgba[2]
+          pixels[outIdx + 3] = cutoffRgba[3]
+        } else {
+          pixels[outIdx + 3] = 0
+        }
+        continue
+      }
+
+      const band = Math.min(bands - 1, Math.floor(norm * bands))
+      const bandCenter = (band + 0.5) / bands
+      const bandRight = Math.min(bands - 1, Math.floor(normRight * bands))
+      const bandDown = Math.min(bands - 1, Math.floor(normDown * bands))
+
+      const [sr, sg, sb] = samplePalette(palette, norm)
+      const [br, bg, bb] = samplePalette(palette, bandCenter)
+
+      let r = sr * 0.6 + br * 0.4
+      let g = sg * 0.6 + bg * 0.4
+      let b = sb * 0.6 + bb * 0.4
+
+      const majorBand = Math.floor(band / majorEvery)
+      const crossesMajor =
+        (normRight >= minNorm &&
+          majorBand !== Math.floor(bandRight / majorEvery)) ||
+        (normDown >= minNorm &&
+          majorBand !== Math.floor(bandDown / majorEvery))
+      const crossesMinor =
+        (normRight >= minNorm && band !== bandRight) ||
+        (normDown >= minNorm && band !== bandDown)
+
+      if (crossesMajor) {
+        r *= 0.68
+        g *= 0.68
+        b *= 0.68
+      } else if (crossesMinor) {
+        r *= 0.85
+        g *= 0.85
+        b *= 0.85
+      }
+
+      pixels[outIdx] = Math.round(r)
+      pixels[outIdx + 1] = Math.round(g)
+      pixels[outIdx + 2] = Math.round(b)
+      pixels[outIdx + 3] = 255
+    }
+  }
+}
+
 class ThemisThermalGridLayer extends L.GridLayer {
   private settings: ThermalSettings
 
@@ -264,7 +408,6 @@ class ThemisThermalGridLayer extends L.GridLayer {
     const [rawMin, rawMax] = rawRange
     const rawSpan = Math.max(1, rawMax - rawMin)
     const minNorm = thermalLayerToThresholdPct(minLayerInt) / 100
-    const majorEvery = Math.max(2, Math.round(bands / 4))
 
     void fetchGrayTile(tileUrl).then((gray) => {
       const ctx = canvas.getContext('2d')
@@ -276,7 +419,6 @@ class ThemisThermalGridLayer extends L.GridLayer {
       const w = tileSize.x
       const h = tileSize.y
       const imgData = ctx.createImageData(w, h)
-      const pixels = imgData.data
 
       const normAt = (px: number, py: number) => {
         const cx = clamp(px, 0, w - 1)
@@ -284,69 +426,119 @@ class ThemisThermalGridLayer extends L.GridLayer {
         return clamp((gray[cy * w + cx] - rawMin) / rawSpan, 0, 1)
       }
 
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const outIdx = (y * w + x) * 4
-          const norm = normAt(x, y)
-          const normRight = normAt(x + 1, y)
-          const normDown = normAt(x, y + 1)
+      renderBandedScalarTile({
+        pixels: imgData.data,
+        width: w,
+        height: h,
+        minLayerInt,
+        minNorm,
+        bands,
+        palette: THERMAL_PALETTE,
+        cutoffRgba: [254, 215, 170, 240],
+        normAt,
+      })
 
-          if (minLayerInt > 0 && norm < minNorm) {
-            const touchesCutoff =
-              normRight >= minNorm ||
-              normDown >= minNorm ||
-              normAt(x - 1, y) >= minNorm ||
-              normAt(x, y - 1) >= minNorm
-            if (touchesCutoff) {
-              // Crisp warm coral rim around filtered thermal hotspots
-              pixels[outIdx] = 254
-              pixels[outIdx + 1] = 215
-              pixels[outIdx + 2] = 170
-              pixels[outIdx + 3] = 240
-            } else {
-              pixels[outIdx + 3] = 0
-            }
-            continue
-          }
+      ctx.putImageData(imgData, 0, 0)
+      done(undefined, canvas)
+    })
 
-          const band = Math.min(bands - 1, Math.floor(norm * bands))
-          const bandCenter = (band + 0.5) / bands
-          const bandRight = Math.min(bands - 1, Math.floor(normRight * bands))
-          const bandDown = Math.min(bands - 1, Math.floor(normDown * bands))
+    return canvas
+  }
+}
 
-          const [sr, sg, sb] = samplePalette(THERMAL_PALETTE, norm)
-          const [br, bg, bb] = samplePalette(THERMAL_PALETTE, bandCenter)
+interface SpectralSettings {
+  wmtsUrl: string
+  minLayerInt: number
+  bands: ThermalBandsCount
+  rawRange: [number, number]
+  palette: SpectralPalette
+}
 
-          let r = sr * 0.6 + br * 0.4
-          let g = sg * 0.6 + bg * 0.4
-          let b = sb * 0.6 + bb * 0.4
+class TesSpectralGridLayer extends L.GridLayer {
+  private settings: SpectralSettings
 
-          const majorBand = Math.floor(band / majorEvery)
-          const crossesMajor =
-            (normRight >= minNorm &&
-              majorBand !== Math.floor(bandRight / majorEvery)) ||
-            (normDown >= minNorm &&
-              majorBand !== Math.floor(bandDown / majorEvery))
-          const crossesMinor =
-            (normRight >= minNorm && band !== bandRight) ||
-            (normDown >= minNorm && band !== bandDown)
+  constructor(settings: SpectralSettings, options?: L.GridLayerOptions) {
+    super(options)
+    this.settings = settings
+  }
 
-          if (crossesMajor) {
-            r *= 0.68
-            g *= 0.68
-            b *= 0.68
-          } else if (crossesMinor) {
-            r *= 0.85
-            g *= 0.85
-            b *= 0.85
-          }
+  updateSettings(next: SpectralSettings) {
+    if (
+      this.settings.wmtsUrl === next.wmtsUrl &&
+      this.settings.minLayerInt === next.minLayerInt &&
+      this.settings.bands === next.bands &&
+      this.settings.rawRange[0] === next.rawRange[0] &&
+      this.settings.rawRange[1] === next.rawRange[1] &&
+      this.settings.palette === next.palette
+    ) {
+      return
+    }
+    this.settings = next
+    this.redraw()
+  }
 
-          pixels[outIdx] = Math.round(r)
-          pixels[outIdx + 1] = Math.round(g)
-          pixels[outIdx + 2] = Math.round(b)
-          pixels[outIdx + 3] = 255
+  protected createTile(coords: Coords, done: DoneCallback): HTMLElement {
+    const tileSize = this.getTileSize()
+    const canvas = document.createElement('canvas')
+    canvas.width = tileSize.x
+    canvas.height = tileSize.y
+
+    const map = this._map
+    if (!map) {
+      done(undefined, canvas)
+      return canvas
+    }
+
+    const nwPoint = coords.scaleBy(tileSize)
+    const sePoint = nwPoint.add(tileSize)
+    const nw = map.unproject(nwPoint, coords.z)
+    const se = map.unproject(sePoint, coords.z)
+
+    const { wmtsUrl, minLayerInt, bands, rawRange, palette } = this.settings
+    const [rawMin, rawMax] = rawRange
+    const rawSpan = Math.max(0.01, rawMax - rawMin)
+    const minNorm = spectralLayerToThresholdPct(minLayerInt) / 100
+    const paletteCfg = SPECTRAL_PALETTES[palette]
+
+    void fetchTesScalarTile(wmtsUrl).then((scalarTile) => {
+      const ctx = canvas.getContext('2d')
+      if (!ctx || !scalarTile) {
+        done(undefined, canvas)
+        return
+      }
+
+      const w = tileSize.x
+      const h = tileSize.y
+      const gridW = w + 2
+      const gridH = h + 2
+      const normGrid = new Float32Array(gridW * gridH)
+
+      const dLat = (se.lat - nw.lat) / h
+      const dLon = (se.lng - nw.lng) / w
+
+      for (let gy = 0; gy < gridH; gy++) {
+        const lat = nw.lat + (gy - 0.5) * dLat
+        for (let gx = 0; gx < gridW; gx++) {
+          const lon = nw.lng + (gx - 0.5) * dLon
+          const raw = sampleTesScalar(scalarTile, lat, lon)
+          normGrid[gy * gridW + gx] = clamp((raw - rawMin) / rawSpan, 0, 1)
         }
       }
+
+      const imgData = ctx.createImageData(w, h)
+      renderBandedScalarTile({
+        pixels: imgData.data,
+        width: w,
+        height: h,
+        minLayerInt,
+        minNorm,
+        bands,
+        palette: paletteCfg.stops,
+        cutoffRgba: paletteCfg.cutoffRgba,
+        normAt: (px, py) => normGrid[(py + 1) * gridW + (px + 1)],
+        includePixel: (px, py) =>
+          isInsideJezero(nw.lat + (py + 0.5) * dLat, nw.lng + (px + 0.5) * dLon),
+      })
 
       ctx.putImageData(imgData, 0, 0)
       done(undefined, canvas)
@@ -483,6 +675,82 @@ export function ThemisThermalCanvasLayer({
       rawRange: [rawMin, rawMax],
     })
   }, [wmtsUrl, minLayerInt, bands, rawMin, rawMax])
+
+  return null
+}
+
+export function TesSpectralCanvasLayer({
+  wmtsUrl,
+  opacity,
+  minLayerInt,
+  bands,
+  rawRange,
+  palette,
+  maxNativeZoom = 13,
+  zIndex = 13,
+  attribution = 'NASA / JPL / ASU MGS TES',
+}: {
+  wmtsUrl: string
+  opacity: number
+  minLayerInt: number
+  bands: ThermalBandsCount
+  rawRange: [number, number]
+  palette: SpectralPalette
+  maxNativeZoom?: number
+  zIndex?: number
+  attribution?: string
+}) {
+  const map = useMap()
+  const layerRef = useRef<TesSpectralGridLayer | null>(null)
+  const rawMin = rawRange[0]
+  const rawMax = rawRange[1]
+
+  useEffect(() => {
+    const layer = new TesSpectralGridLayer(
+      {
+        wmtsUrl,
+        minLayerInt,
+        bands,
+        rawRange: [rawMin, rawMax],
+        palette,
+      },
+      {
+        bounds: JEZERO_BOUNDS,
+        minZoom: 7,
+        maxNativeZoom,
+        maxZoom: 17,
+        opacity,
+        zIndex,
+        attribution,
+      },
+    )
+    layer.addTo(map)
+    layerRef.current = layer
+
+    return () => {
+      layer.remove()
+      layerRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, wmtsUrl, maxNativeZoom, attribution])
+
+  useEffect(() => {
+    layerRef.current?.setOpacity(opacity)
+  }, [opacity])
+
+  useEffect(() => {
+    layerRef.current?.setZIndex(zIndex)
+  }, [zIndex])
+
+  useEffect(() => {
+    layerRef.current?.updateSettings({
+      wmtsUrl,
+      minLayerInt,
+      bands,
+      rawRange: [rawMin, rawMax],
+      palette,
+    })
+  }, [wmtsUrl, minLayerInt, bands, rawMin, rawMax, palette])
 
   return null
 }

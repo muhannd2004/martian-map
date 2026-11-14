@@ -34,6 +34,16 @@ export const MARS_TREK_THEMIS_DAY_IR_WMTS_URL =
 export const MARS_TREK_MOLA_ELEVATION_WMTS_URL =
   'https://trek.nasa.gov/tiles/Mars/EQ/mola128_mola64_merge_90Nto90S_SimpleC_clon0/1.0.0/default/default028mm/5/12/45.png'
 
+// NASA Mars Trek MGS TES spectral products serve native zoom levels 0..1 (Jezero lies inside 1/0/2.png)
+export const MARS_TREK_TES_PYROXENE_WMTS_URL =
+  'https://trek.nasa.gov/tiles/Mars/EQ/TES_Clinopyroxene/1.0.0/default/default028mm/1/0/2.png'
+
+export const MARS_TREK_TES_PLAGIOCLASE_WMTS_URL =
+  'https://trek.nasa.gov/tiles/Mars/EQ/TES_Plagioclase/1.0.0/default/default028mm/1/0/2.png'
+
+export const MARS_TREK_TES_DUST_WMTS_URL =
+  'https://trek.nasa.gov/tiles/Mars/EQ/TES_Dust/1.0.0/default/default028mm/1/0/2.png'
+
 function hiRiseCenterTileUrl(coords: LatLonTuple, z = 17): string {
   const { ty, tx } = coordsToEpsg4326Tile(coords, z)
   return formatWmtsTileUrl(MARS_TREK_JEZERO_HIRISE_WMTS_URL, z, ty, tx)
@@ -210,6 +220,54 @@ export const INITIAL_LAYERS: LayerConfig[] = [
     thermalBands: 12,
     thermalRawRange: [85, 175],
     zIndex: 12,
+  },
+  {
+    id: 'tesPyroxene',
+    label: 'High-Calcium Pyroxene Abundance',
+    subtitle: 'MGS TES clinopyroxene mafic signature',
+    visible: false,
+    opacity: 0.65,
+    kind: 'tes-spectral',
+    wmtsUrl: MARS_TREK_TES_PYROXENE_WMTS_URL,
+    attribution: 'NASA / JPL / ASU MGS TES',
+    maxNativeZoom: 13,
+    spectralMinLayer: 0,
+    spectralBands: 12,
+    spectralRawRange: [0.24, 0.68],
+    spectralPalette: 'pyroxene',
+    zIndex: 13,
+  },
+  {
+    id: 'tesPlagioclase',
+    label: 'Plagioclase Feldspar Abundance',
+    subtitle: 'MGS TES crustal feldspar enrichment',
+    visible: false,
+    opacity: 0.65,
+    kind: 'tes-spectral',
+    wmtsUrl: MARS_TREK_TES_PLAGIOCLASE_WMTS_URL,
+    attribution: 'NASA / JPL / ASU MGS TES',
+    maxNativeZoom: 13,
+    spectralMinLayer: 0,
+    spectralBands: 12,
+    spectralRawRange: [0.2, 0.78],
+    spectralPalette: 'plagioclase',
+    zIndex: 14,
+  },
+  {
+    id: 'tesDust',
+    label: 'Surface Dust Cover Index',
+    subtitle: 'MGS TES fine regolith & dust mantle index',
+    visible: false,
+    opacity: 0.6,
+    kind: 'tes-spectral',
+    wmtsUrl: MARS_TREK_TES_DUST_WMTS_URL,
+    attribution: 'NASA / JPL / ASU MGS TES',
+    maxNativeZoom: 13,
+    spectralMinLayer: 0,
+    spectralBands: 12,
+    spectralRawRange: [0.0, 0.28],
+    spectralPalette: 'dust',
+    zIndex: 15,
   },
   {
     id: 'geologicZones',

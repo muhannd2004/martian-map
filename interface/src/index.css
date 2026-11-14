@@ -58,6 +58,20 @@ body,
   backdrop-filter: blur(8px);
 }
 
+/* Adaptive Popup Placement when flipped downwards */
+.leaflet-popup.leaflet-popup-placement-down {
+  bottom: auto !important;
+  margin-bottom: 0 !important;
+  margin-top: 15px !important;
+}
+
+.leaflet-popup.leaflet-popup-placement-down .leaflet-popup-tip-container {
+  top: 0 !important;
+  bottom: auto !important;
+  margin-top: -19px !important;
+  transform: rotate(180deg) !important;
+}
+
 .leaflet-popup-close-button {
   color: #94a3b8 !important;
 }

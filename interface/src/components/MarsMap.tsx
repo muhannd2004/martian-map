@@ -241,7 +241,7 @@ function ProbeWaypointMarker({
         click: () => onSelectWaypoint(waypoint.id),
       }}
     >
-      <Popup maxWidth={330} minWidth={288}>
+      <Popup autoPan={false} maxWidth={330} minWidth={288}>
         <PinPopupContent
           key={`${waypoint.id}-${waypoint.coords[0]}-${waypoint.coords[1]}`}
           waypoint={waypoint}
@@ -253,6 +253,114 @@ function ProbeWaypointMarker({
       </Popup>
     </Marker>
   )
+}
+
+function useAdaptivePopup(coords: LatLonTuple) {
+  const map = useMap()
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+
+    const popupEl = el.closest('.leaflet-popup') as HTMLElement | null
+    if (!popupEl) return
+
+    const tipContainer = popupEl.querySelector(
+      '.leaflet-popup-tip-container',
+    ) as HTMLElement | null
+
+    const adjust = () => {
+      if (!contentRef.current) return
+      const markerPoint = map.latLngToContainerPoint(coords)
+      const mapSize = map.getSize()
+      const mapWidth = mapSize.x
+      const mapHeight = mapSize.y
+
+      const popupWidth = popupEl.offsetWidth || 300
+      const popupHeight = popupEl.offsetHeight || 380
+
+      const PADDING = 14
+      const TOP_PAD = 55
+      const BOTTOM_PAD = 65
+      const PIN_OFFSET = 18
+
+      // Vertical space calculation
+      const spaceUp = markerPoint.y - TOP_PAD
+      const spaceDown = mapHeight - markerPoint.y - BOTTOM_PAD
+
+      const fitsUp = spaceUp >= popupHeight + PIN_OFFSET
+      const fitsDown = spaceDown >= popupHeight + PIN_OFFSET
+
+      const isDown = !fitsUp && (fitsDown || spaceDown > spaceUp)
+
+      if (isDown) {
+        popupEl.classList.add('leaflet-popup-placement-down')
+        popupEl.style.setProperty('bottom', 'auto', 'important')
+        popupEl.style.setProperty('top', `${PIN_OFFSET}px`, 'important')
+        if (tipContainer) {
+          tipContainer.style.setProperty('top', '0px', 'important')
+          tipContainer.style.setProperty('bottom', 'auto', 'important')
+          tipContainer.style.setProperty('margin-top', '-19px', 'important')
+          tipContainer.style.setProperty('transform', 'rotate(180deg)', 'important')
+        }
+      } else {
+        popupEl.classList.remove('leaflet-popup-placement-down')
+        popupEl.style.setProperty('top', 'auto', 'important')
+        popupEl.style.removeProperty('bottom')
+        if (tipContainer) {
+          tipContainer.style.removeProperty('top')
+          tipContainer.style.removeProperty('bottom')
+          tipContainer.style.removeProperty('margin-top')
+          tipContainer.style.removeProperty('transform')
+        }
+      }
+
+      // Horizontal space calculation
+      const defaultLeft = markerPoint.x - popupWidth / 2
+      const defaultRight = markerPoint.x + popupWidth / 2
+
+      let shiftX = 0
+      if (defaultRight > mapWidth - PADDING) {
+        // No space right -> shift left
+        shiftX = (mapWidth - PADDING) - defaultRight
+      } else if (defaultLeft < PADDING) {
+        // No space left -> shift right
+        shiftX = PADDING - defaultLeft
+      }
+
+      const baseLeft = -Math.round(popupWidth / 2)
+      popupEl.style.left = `${baseLeft + shiftX}px`
+
+      if (tipContainer) {
+        const maxTipShift = Math.max(10, popupWidth / 2 - 28)
+        const clampedMargin = Math.max(
+          -20 - maxTipShift,
+          Math.min(-20 + maxTipShift, -20 - shiftX),
+        )
+        tipContainer.style.left = '50%'
+        tipContainer.style.marginLeft = `${clampedMargin}px`
+      }
+    }
+
+    adjust()
+    const frameId = window.requestAnimationFrame(adjust)
+
+    map.on('move zoom viewreset resize', adjust)
+
+    const ro = new ResizeObserver(() => {
+      adjust()
+    })
+    ro.observe(el)
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      map.off('move zoom viewreset resize', adjust)
+      ro.disconnect()
+    }
+  }, [map, coords[0], coords[1]])
+
+  return contentRef
 }
 
 function PinPopupContent({
@@ -268,8 +376,13 @@ function PinPopupContent({
   onSetTarget: (waypointId: string) => void
   onStartRouteFromPin: (waypointId: string) => void
 }) {
+  const contentRef = useAdaptivePopup(waypoint.coords)
+
   return (
-    <div className="w-[288px] space-y-2 text-slate-100">
+    <div
+      ref={contentRef}
+      className="w-[288px] max-h-[min(480px,calc(100vh-140px))] overflow-y-auto pr-1 hud-scroll space-y-2 text-slate-100"
+    >
       <div className="flex items-center justify-between gap-2">
         <span
           className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase ${
@@ -644,7 +757,7 @@ export function MarsMap({
                 click: () => onSelectWaypoint(wp.id),
               }}
             >
-              <Popup maxWidth={330} minWidth={288}>
+              <Popup autoPan={false} maxWidth={330} minWidth={288}>
                 <PinPopupContent
                   key={wp.id}
                   waypoint={wp}

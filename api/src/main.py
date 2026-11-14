@@ -22,6 +22,7 @@ class RouteRequest(BaseModel):
     start: list[float]
     end: list[float]
     max_slope: float = 15.0
+    avoidable_areas: list[list[list[float]]] = []
 
 
 @app.post("/api/route")
@@ -31,8 +32,12 @@ def get_route(req: RouteRequest):
         router = TerrainRouter(dem_src=dem_src, slope_power=2, max_slope=req.max_slope)
         start_rc = mapper.latlon_to_rc(req.start[0], req.start[1])
         end_rc = mapper.latlon_to_rc(req.end[0], req.end[1])
+        avoidable_areas_rc = [
+            [mapper.latlon_to_rc(pt[0], pt[1]) for pt in area]
+            for area in req.avoidable_areas
+        ]
         try:
-            result = router.get_best_path(start_rc, end_rc)
+            result = router.get_best_path(start_rc, end_rc, avoidable_areas=avoidable_areas_rc)
         except (ValueError, RuntimeError) as e:
             raise HTTPException(status_code=400, detail=str(e))
         coords = mapper.path_to_latlon(result["path"])

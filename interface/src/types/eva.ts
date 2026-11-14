@@ -120,10 +120,13 @@ export interface EvaRoutePlan {
   slopeSource: 'local-preview' | 'python-backend'
 }
 
+export type AvoidableArea = LatLonTuple[]
+
 export interface PlanEvaParams {
   startWaypointId: string
   targetWaypointId: string
   maxSlopeDeg: number
   stormMode: boolean
   extraWaypoints?: Waypoint[]
+  avoidableAreas?: AvoidableArea[]
 }

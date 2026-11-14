@@ -16,6 +16,7 @@ import {
   withElevationEstimate,
 } from './services/siteInspector'
 import type {
+  AvoidableArea,
   ControlCircleId,
   EvaRoutePlan,
   LatLonTuple,
@@ -24,6 +25,17 @@ import type {
   RasterAvailabilityMap,
   Waypoint,
 } from './types/eva'
+
+function sortPolygonPoints(points: LatLonTuple[]): LatLonTuple[] {
+  if (points.length < 3) return points
+  const centerLat = points.reduce((sum, p) => sum + p[0], 0) / points.length
+  const centerLon = points.reduce((sum, p) => sum + p[1], 0) / points.length
+  return [...points].sort((a, b) => {
+    const angleA = Math.atan2(a[0] - centerLat, a[1] - centerLon)
+    const angleB = Math.atan2(b[0] - centerLat, b[1] - centerLon)
+    return angleA - angleB
+  })
+}
 
 const INITIAL_START_ID = 'butler-landing'
 const INITIAL_TARGET_ID = 'bright-angel'
@@ -67,6 +79,10 @@ function App() {
 
   const [probeWaypoint, setProbeWaypoint] = useState<Waypoint | null>(null)
   const [customEndpoints, setCustomEndpoints] = useState<Waypoint[]>([])
+
+  const [avoidableAreas, setAvoidableAreas] = useState<AvoidableArea[]>([])
+  const [isDrawingAvoidableArea, setIsDrawingAvoidableArea] = useState(false)
+  const [draftAvoidablePoints, setDraftAvoidablePoints] = useState<LatLonTuple[]>([])
 
   const [routePlan, setRoutePlan] = useState<EvaRoutePlan>(() =>
     planLocalEvaRoute({
@@ -121,13 +137,16 @@ function App() {
     slopeDeg?: number
     storm?: boolean
     extraWaypoints?: Waypoint[]
+    avoidableAreas?: AvoidableArea[]
   }) => {
+    const activeAvoidableAreas = overrides?.avoidableAreas ?? avoidableAreas
     const params = {
       startWaypointId: overrides?.startId ?? startWaypointId,
       targetWaypointId: overrides?.targetId ?? targetWaypointId,
       maxSlopeDeg: overrides?.slopeDeg ?? maxSlopeDeg,
       stormMode: overrides?.storm ?? stormMode,
       extraWaypoints: overrides?.extraWaypoints ?? customEndpoints,
+      avoidableAreas: activeAvoidableAreas,
     }
     const extra = overrides?.extraWaypoints ?? customEndpoints
     const all = [...JEZERO_WAYPOINTS, ...extra]
@@ -139,6 +158,40 @@ function App() {
       setRoutePlan(plan)
       setRouteLoading(false)
     })
+  }
+
+  const handleToggleDrawingAvoidableArea = () => {
+    setIsDrawingAvoidableArea((prev) => {
+      if (prev) setDraftAvoidablePoints([])
+      return !prev
+    })
+  }
+
+  const handleAddAvoidablePoint = (coords: LatLonTuple) => {
+    const nextDraft = [...draftAvoidablePoints, coords]
+    if (nextDraft.length === 4) {
+      const sorted = sortPolygonPoints(nextDraft)
+      const nextAreas = [...avoidableAreas, sorted]
+      setAvoidableAreas(nextAreas)
+      setDraftAvoidablePoints([])
+      setIsDrawingAvoidableArea(false)
+      recalculateRoute({ avoidableAreas: nextAreas })
+    } else {
+      setDraftAvoidablePoints(nextDraft)
+    }
+  }
+
+  const handleRemoveAvoidableArea = (index: number) => {
+    const nextAreas = avoidableAreas.filter((_, i) => i !== index)
+    setAvoidableAreas(nextAreas)
+    recalculateRoute({ avoidableAreas: nextAreas })
+  }
+
+  const handleClearAvoidableAreas = () => {
+    setAvoidableAreas([])
+    setDraftAvoidablePoints([])
+    setIsDrawingAvoidableArea(false)
+    recalculateRoute({ avoidableAreas: [] })
   }
 
   const handleToggleLayer = (id: LayerId) => {
@@ -308,11 +361,18 @@ function App() {
           targetWaypointId={targetWaypointId}
           selectedWaypointId={selectedWaypointId}
           stormMode={stormMode}
+          avoidableAreas={avoidableAreas}
+          isDrawingAvoidableArea={isDrawingAvoidableArea}
+          draftAvoidablePoints={draftAvoidablePoints}
           onSelectWaypoint={handleSelectMapWaypoint}
           onDropMapWaypoint={handleDropMapWaypoint}
           onSetStart={handleChangeStart}
           onSetTarget={handleChangeTarget}
           onStartRouteFromPin={handleStartRouteFromPin}
+          onToggleDrawingAvoidableArea={handleToggleDrawingAvoidableArea}
+          onAddAvoidablePoint={handleAddAvoidablePoint}
+          onRemoveAvoidableArea={handleRemoveAvoidableArea}
+          onClearAvoidableAreas={handleClearAvoidableAreas}
         />
 
         <LayersControl

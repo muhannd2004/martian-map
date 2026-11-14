@@ -6,6 +6,7 @@ import {
   GeoJSON,
   MapContainer,
   Marker,
+  Polygon as LeafletPolygon,
   Polyline,
   Popup,
   TileLayer,
@@ -29,6 +30,7 @@ import {
   MARS_TREK_JEZERO_HIRISE_WMTS_URL,
 } from '../data/waypoints'
 import type {
+  AvoidableArea,
   EvaRoutePlan,
   GeologicUnitProperties,
   LatLonTuple,
@@ -48,11 +50,18 @@ interface MarsMapProps {
   targetWaypointId: string
   selectedWaypointId: string
   stormMode: boolean
+  avoidableAreas: AvoidableArea[]
+  isDrawingAvoidableArea: boolean
+  draftAvoidablePoints: LatLonTuple[]
   onSelectWaypoint: (waypointId: string) => void
   onDropMapWaypoint: (coords: LatLonTuple) => void
   onSetStart: (waypointId: string) => void
   onSetTarget: (waypointId: string) => void
   onStartRouteFromPin: (waypointId: string) => void
+  onToggleDrawingAvoidableArea: () => void
+  onAddAvoidablePoint: (coords: LatLonTuple) => void
+  onRemoveAvoidableArea: (index: number) => void
+  onClearAvoidableAreas: () => void
 }
 
 const CATEGORY_COLORS: Record<
@@ -152,14 +161,19 @@ function MapCursorTracker({
 }
 
 function MapClickDropper({
+  isDrawingAvoidableArea,
+  onAddAvoidablePoint,
   onDropWaypoint,
 }: {
+  isDrawingAvoidableArea: boolean
+  onAddAvoidablePoint: (coords: LatLonTuple) => void
   onDropWaypoint: (coords: LatLonTuple) => void
 }) {
   useMapEvents({
     click(e) {
       const target = e.originalEvent.target as HTMLElement | null
       if (
+        !isDrawingAvoidableArea &&
         target?.closest('.leaflet-marker-icon, .leaflet-popup, .leaflet-control')
       ) {
         return
@@ -172,7 +186,11 @@ function MapClickDropper({
         JEZERO_BOUNDS[0][1],
         Math.min(JEZERO_BOUNDS[1][1], e.latlng.lng),
       )
-      onDropWaypoint([clampedLat, clampedLon])
+      if (isDrawingAvoidableArea) {
+        onAddAvoidablePoint([clampedLat, clampedLon])
+      } else {
+        onDropWaypoint([clampedLat, clampedLon])
+      }
     },
   })
   return null
@@ -420,11 +438,18 @@ export function MarsMap({
   targetWaypointId,
   selectedWaypointId,
   stormMode,
+  avoidableAreas,
+  isDrawingAvoidableArea,
+  draftAvoidablePoints,
   onSelectWaypoint,
   onDropMapWaypoint,
   onSetStart,
   onSetTarget,
   onStartRouteFromPin,
+  onToggleDrawingAvoidableArea,
+  onAddAvoidablePoint,
+  onRemoveAvoidableArea,
+  onClearAvoidableAreas,
 }: MarsMapProps) {
   const [cursorCoords, setCursorCoords] = useState<LatLonTuple | null>(null)
 
@@ -455,7 +480,11 @@ export function MarsMap({
         className="h-full w-full"
       >
         <MapCursorTracker onCursorMove={setCursorCoords} />
-        <MapClickDropper onDropWaypoint={onDropMapWaypoint} />
+        <MapClickDropper
+          isDrawingAvoidableArea={isDrawingAvoidableArea}
+          onAddAvoidablePoint={onAddAvoidablePoint}
+          onDropWaypoint={onDropMapWaypoint}
+        />
         <MapBoundsManager />
 
         {/* 1. Permanent Jezero Base Backdrop: Gap-free NASA Mars Trek HiRISE+CTX+HRSC */}
@@ -640,7 +669,131 @@ export function MarsMap({
             onStartRouteFromPin={onStartRouteFromPin}
           />
         )}
+
+        {/* Avoidable Danger / Exclusion Zones */}
+        {avoidableAreas.map((area, idx) => (
+          <LeafletPolygon
+            key={`avoidable-area-${idx}`}
+            positions={area}
+            interactive={!isDrawingAvoidableArea}
+            pathOptions={{
+              color: '#ef4444',
+              fillColor: '#ef4444',
+              fillOpacity: 0.35,
+              weight: 2,
+              dashArray: '6 4',
+            }}
+          >
+            <Tooltip sticky className="ares-tooltip">
+              <span className="font-mono text-[11px] font-semibold text-red-300">
+                Avoidable Area #{idx + 1} (Click to remove)
+              </span>
+            </Tooltip>
+            <Popup minWidth={150}>
+              <div className="space-y-1.5 p-1 font-mono text-slate-100">
+                <div className="text-xs font-bold text-red-400">
+                  AVOIDABLE AREA #{idx + 1}
+                </div>
+                <div className="text-[10px] text-slate-300">
+                  4-Point Restricted Perimeter
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onRemoveAvoidableArea(idx)
+                  }}
+                  className="mt-1 w-full cursor-pointer rounded border border-red-500/60 bg-red-600/30 px-2 py-1 text-[10px] font-bold text-red-200 transition-colors hover:bg-red-600/50"
+                >
+                  REMOVE AREA
+                </button>
+              </div>
+            </Popup>
+          </LeafletPolygon>
+        ))}
+
+        {/* Temporary Draft Avoidable Area Markers and Line */}
+        {draftAvoidablePoints.length > 0 && (
+          <>
+            <Polyline
+              positions={draftAvoidablePoints}
+              pathOptions={{
+                color: '#f97316',
+                weight: 2,
+                dashArray: '4 4',
+              }}
+            />
+            {draftAvoidablePoints.map((pt, i) => (
+              <Marker
+                key={`draft-avoidable-pt-${i}`}
+                position={pt}
+                icon={L.divIcon({
+                  className: 'ares-div-icon',
+                  html: `
+                    <div style="position:relative;display:flex;align-items:center;justify-content:center;transform:translate(-50%,-50%);">
+                      <div style="width:20px;height:20px;border-radius:9999px;background:rgba(239,68,68,0.95);border:2px solid #ffffff;color:#ffffff;font-size:10px;font-weight:bold;display:flex;align-items:center;justify-content:center;font-family:monospace;box-shadow:0 0 10px #ef4444;">
+                        ${i + 1}
+                      </div>
+                    </div>
+                  `,
+                  iconSize: [0, 0],
+                  iconAnchor: [0, 0],
+                })}
+              />
+            ))}
+          </>
+        )}
       </MapContainer>
+
+      {/* Top-Left Avoidable Areas Control Tool */}
+      <div className="absolute top-3 left-3 z-[400] flex flex-col gap-1.5">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onToggleDrawingAvoidableArea}
+            className={`cursor-pointer rounded border px-3 py-1 font-mono text-[11px] font-bold tracking-wide backdrop-blur-md transition-all shadow-lg ${
+              isDrawingAvoidableArea
+                ? 'border-amber-400 bg-amber-500/25 text-amber-200 ring-2 ring-amber-400/30 animate-pulse'
+                : 'border-red-500/50 bg-[#090d16]/90 text-red-300 hover:border-red-400 hover:bg-red-950/60'
+            }`}
+          >
+            {isDrawingAvoidableArea
+              ? `CANCEL DRAWING (${draftAvoidablePoints.length}/4 PTS)`
+              : '+ AVOIDABLE AREA (4 PTS)'}
+          </button>
+
+          {avoidableAreas.length > 0 && (
+            <button
+              type="button"
+              onClick={onClearAvoidableAreas}
+              className="cursor-pointer rounded border border-slate-700 bg-[#090d16]/90 px-2.5 py-1 font-mono text-[11px] font-semibold text-slate-300 backdrop-blur-md transition-colors hover:border-red-500/60 hover:text-red-300 shadow-lg"
+            >
+              CLEAR ({avoidableAreas.length})
+            </button>
+          )}
+        </div>
+
+        {isDrawingAvoidableArea && (
+          <div className="rounded border border-amber-500/50 bg-[#090d16]/95 px-3 py-2 font-mono text-[10px] text-amber-300 shadow-xl backdrop-blur-md">
+            <div>Click 4 points on map to enclose hazard perimeter:</div>
+            <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-white">
+              <span>Points:</span>
+              {[1, 2, 3, 4].map((step) => (
+                <span
+                  key={step}
+                  className={`inline-block h-5 w-5 rounded-full text-center leading-5 text-[10px] ${
+                    step <= draftAvoidablePoints.length
+                      ? 'bg-amber-400 text-slate-950 font-black'
+                      : 'border border-slate-600 bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  {step}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Bottom-Left Cursor Coordinate & Projection HUD */}
       <div className="pointer-events-none absolute bottom-3 left-3 z-[400] flex flex-col gap-1.5">

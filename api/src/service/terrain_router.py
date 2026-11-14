@@ -3,6 +3,7 @@ import numpy as np
 import rasterio
 from rasterio.warp import Resampling, reproject
 from skimage.graph import MCP_Geometric
+from skimage.draw import polygon
 from rasterio.fill import fillnodata
 from scipy.ndimage import gaussian_filter
 
@@ -77,15 +78,15 @@ class TerrainRouter:
         if np.isnan(self.dem[r, c]):
             raise ValueError(f"{name} {point} lands on a NoData DEM pixel.")
 
-    def get_best_path(self, start_rc, end_rc, directional_uphill=False):
+    def get_best_path(self, start_rc, end_rc, directional_uphill=False, avoidable_areas=None):
         self._validate_point(start_rc, "Start")
         self._validate_point(end_rc, "End")
 
         if directional_uphill:
-            return self._find_directional_path(start_rc, end_rc)
-        return self._find_geometric_path(start_rc, end_rc)
+            return self._find_directional_path(start_rc, end_rc, avoidable_areas=avoidable_areas)
+        return self._find_geometric_path(start_rc, end_rc, avoidable_areas=avoidable_areas)
 
-    def _find_geometric_path(self, start_rc, end_rc):
+    def _find_geometric_path(self, start_rc, end_rc, avoidable_areas=None):
         dy, dx = np.gradient(self.dem)
         slope = np.hypot(dx, dy)
 
@@ -106,18 +107,37 @@ class TerrainRouter:
 
         cost_surface = np.where(np.isnan(self.dem), np.inf, cost_surface)
 
+        if avoidable_areas:
+            for area in avoidable_areas:
+                if len(area) >= 3:
+                    pts = np.array(area)
+                    cr, cc = np.mean(pts[:, 0]), np.mean(pts[:, 1])
+                    order = np.argsort(np.arctan2(pts[:, 0] - cr, pts[:, 1] - cc))
+                    rr, cc_arr = polygon(pts[order, 0], pts[order, 1], shape=cost_surface.shape)
+                    cost_surface[rr, cc_arr] = np.inf
+
         mcp = MCP_Geometric(cost_surface, fully_connected=True)
         cumulative_costs, _ = mcp.find_costs(starts=[start_rc], ends=[end_rc])
 
         total_cost = float(cumulative_costs[end_rc])
         if np.isinf(total_cost):
-            raise RuntimeError("No valid path exists (blocked by NoData, cliffs, or extreme heat).")
+            raise RuntimeError("No valid path exists (blocked by NoData, cliffs, extreme heat, or avoidable areas).")
 
         path = np.array(mcp.traceback(end_rc))
         return {"path": path, "cost": total_cost, "steps": len(path)}
 
-    def _find_directional_path(self, start_rc, end_rc):
+    def _find_directional_path(self, start_rc, end_rc, avoidable_areas=None):
         rows, cols = self.dem.shape
+        avoid_mask = np.zeros(self.dem.shape, dtype=bool)
+        if avoidable_areas:
+            for area in avoidable_areas:
+                if len(area) >= 3:
+                    pts = np.array(area)
+                    cr, cc = np.mean(pts[:, 0]), np.mean(pts[:, 1])
+                    order = np.argsort(np.arctan2(pts[:, 0] - cr, pts[:, 1] - cc))
+                    rr, cc_arr = polygon(pts[order, 0], pts[order, 1], shape=self.dem.shape)
+                    avoid_mask[rr, cc_arr] = True
+
         pq = [(0.0, start_rc)]
         came_from = {}
         best_cost = {start_rc: 0.0}
@@ -138,6 +158,8 @@ class TerrainRouter:
             for dr, dc, dist in neighbors:
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < rows and 0 <= nc < cols:
+                    if avoid_mask[nr, nc]:
+                        continue
                     next_elev = self.dem[nr, nc]
                     if np.isnan(next_elev):
                         continue

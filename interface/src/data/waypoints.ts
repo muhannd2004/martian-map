@@ -1,3 +1,7 @@
+import {
+  coordsToEpsg4326Tile,
+  formatWmtsTileUrl,
+} from '../services/hiriseTiles'
 import type {
   LatLonBoundsTuple,
   LatLonTuple,
@@ -30,6 +34,11 @@ export const MARS_TREK_THEMIS_DAY_IR_WMTS_URL =
 export const MARS_TREK_MOLA_ELEVATION_WMTS_URL =
   'https://trek.nasa.gov/tiles/Mars/EQ/mola128_mola64_merge_90Nto90S_SimpleC_clon0/1.0.0/default/default028mm/5/12/45.png'
 
+function hiRiseCenterTileUrl(coords: LatLonTuple, z = 17): string {
+  const { ty, tx } = coordsToEpsg4326Tile(coords, z)
+  return formatWmtsTileUrl(MARS_TREK_JEZERO_HIRISE_WMTS_URL, z, ty, tx)
+}
+
 export const JEZERO_WAYPOINTS: Waypoint[] = [
   {
     id: 'butler-landing',
@@ -49,10 +58,9 @@ export const JEZERO_WAYPOINTS: Waypoint[] = [
       windMs: 3.8,
       radiationMsvDay: 0.62,
     },
-    povImageUrl:
-      'https://images-assets.nasa.gov/image/PIA24483/PIA24483~thumb.jpg',
-    povTitle: 'Welcome to "Octavia E. Butler Landing" (Mastcam-Z)',
-    povCredit: 'NASA/JPL-Caltech/ASU',
+    povImageUrl: hiRiseCenterTileUrl([18.4447, 77.4508]),
+    povTitle: 'Octavia E. Butler Landing — 25cm HiRISE Orbital View',
+    povCredit: 'NASA / JPL / UofA HiRISE',
   },
   {
     id: 'seitah-dunes',
@@ -72,10 +80,16 @@ export const JEZERO_WAYPOINTS: Waypoint[] = [
       windMs: 6.4,
       radiationMsvDay: 0.65,
     },
-    povImageUrl:
-      'https://images-assets.nasa.gov/image/PIA24793/PIA24793~medium.jpg',
-    povTitle: 'Séítah Eolian Sand Ripples & Fractured Outcrops',
-    povCredit: 'NASA/JPL-Caltech',
+    povImageUrl: '/panoramas/seitah.jpg',
+    povTitle: 'Séítah Megaripples 360° Mosaic (Mastcam-Z)',
+    povCredit: 'NASA/JPL-Caltech • 360° Panorama',
+    panorama: {
+      url: '/panoramas/seitah.jpg',
+      verticalFovDeg: 54,
+      horizontalFovDeg: 360,
+      initialPitchDeg: 3,
+      initialYawDeg: 0,
+    },
   },
   {
     id: 'kodiak-butte',
@@ -95,10 +109,16 @@ export const JEZERO_WAYPOINTS: Waypoint[] = [
       windMs: 4.5,
       radiationMsvDay: 0.64,
     },
-    povImageUrl:
-      'https://images-assets.nasa.gov/image/PIA24802/PIA24802~medium.jpg',
-    povTitle: 'Kodiak Butte Delta Stratigraphy (Mastcam-Z)',
-    povCredit: 'NASA/JPL-Caltech/ASU/MSSS',
+    povImageUrl: '/panoramas/kodiak-butte.jpg',
+    povTitle: 'Kodiak Butte 360° Delta Stratigraphy (Mastcam-Z)',
+    povCredit: 'NASA/JPL-Caltech/ASU/MSSS • 360° Panorama',
+    panorama: {
+      url: '/panoramas/kodiak-butte.jpg',
+      verticalFovDeg: 96,
+      horizontalFovDeg: 360,
+      initialPitchDeg: 6,
+      initialYawDeg: 0,
+    },
   },
   {
     id: 'three-forks',
@@ -118,10 +138,9 @@ export const JEZERO_WAYPOINTS: Waypoint[] = [
       windMs: 5.1,
       radiationMsvDay: 0.66,
     },
-    povImageUrl:
-      'https://images-assets.nasa.gov/image/PIA25022/PIA25022~thumb.jpg',
-    povTitle: 'Western Delta Escarpment Mosaic (Mastcam-Z)',
-    povCredit: 'NASA/JPL-Caltech/ASU/MSSS',
+    povImageUrl: hiRiseCenterTileUrl([18.462, 77.398]),
+    povTitle: 'Three Forks / Delta Front — 25cm HiRISE Orbital View',
+    povCredit: 'NASA / JPL / UofA HiRISE',
   },
   {
     id: 'bright-angel',
@@ -141,10 +160,9 @@ export const JEZERO_WAYPOINTS: Waypoint[] = [
       windMs: 4.9,
       radiationMsvDay: 0.69,
     },
-    povImageUrl:
-      'https://images-assets.nasa.gov/image/PIA26372/PIA26372~medium.jpg',
-    povTitle: 'Bright Angel Light-Toned Outcrops (Mastcam-Z)',
-    povCredit: 'NASA/JPL-Caltech/ASU/MSSS',
+    povImageUrl: hiRiseCenterTileUrl([18.485, 77.365]),
+    povTitle: 'Margin Unit / Bright Angel — 25cm HiRISE Orbital View',
+    povCredit: 'NASA / JPL / UofA HiRISE',
   },
 ]
 

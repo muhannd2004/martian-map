@@ -16,6 +16,14 @@ export interface WaypointTelemetry {
   radiationMsvDay: number
 }
 
+export interface WaypointPanorama {
+  url: string
+  verticalFovDeg: number
+  horizontalFovDeg?: number
+  initialPitchDeg?: number
+  initialYawDeg?: number
+}
+
 export interface Waypoint {
   id: string
   name: string
@@ -30,6 +38,7 @@ export interface Waypoint {
   povImageUrl: string
   povTitle: string
   povCredit: string
+  panorama?: WaypointPanorama
 }
 
 export type HazardLevel = 'low' | 'moderate' | 'high' | 'extreme'

@@ -22,6 +22,7 @@ import {
   JezeroElevationLayer,
   ThemisThermalCanvasLayer,
 } from './CanvasMapLayers'
+import { WaypointMediaViewer } from './WaypointMediaViewer'
 import {
   JEZERO_BOUNDS,
   JEZERO_CENTER,
@@ -132,7 +133,11 @@ function createWaypointDivIcon(
         font-weight:700;
         white-space:nowrap;
         letter-spacing:0.04em;
-      ">${roleTag} · ${waypoint.shortLabel.split('//')[1]?.trim() ?? waypoint.name}</div>
+      ">${roleTag} · ${waypoint.shortLabel.split('//')[1]?.trim() ?? waypoint.name}${
+        waypoint.panorama
+          ? ' <span style="color:#38bdf8;margin-left:3px;">360°</span>'
+          : ''
+      }</div>
     </div>
   `
 
@@ -237,7 +242,7 @@ function ProbeWaypointMarker({
         click: () => onSelectWaypoint(waypoint.id),
       }}
     >
-      <Popup maxWidth={285} minWidth={245}>
+      <Popup maxWidth={330} minWidth={288}>
         <PinPopupContent
           key={`${waypoint.id}-${waypoint.coords[0]}-${waypoint.coords[1]}`}
           waypoint={waypoint}
@@ -264,10 +269,8 @@ function PinPopupContent({
   onSetTarget: (waypointId: string) => void
   onStartRouteFromPin: (waypointId: string) => void
 }) {
-  const [imgError, setImgError] = useState(false)
-
   return (
-    <div className="w-[248px] space-y-2 text-slate-100">
+    <div className="w-[288px] space-y-2 text-slate-100">
       <div className="flex items-center justify-between gap-2">
         <span
           className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase ${
@@ -299,24 +302,7 @@ function PinPopupContent({
         </div>
       </div>
 
-      {!imgError ? (
-        <div className="relative overflow-hidden rounded border border-slate-700/70 bg-slate-950">
-          <img
-            src={waypoint.povImageUrl}
-            alt={waypoint.povTitle}
-            className="h-24 w-full object-cover"
-            loading="lazy"
-            onError={() => setImgError(true)}
-          />
-          <div className="bg-gradient-to-t from-black/90 via-black/40 to-transparent px-1.5 py-1 text-[9px] leading-tight text-slate-200">
-            {waypoint.povTitle}
-          </div>
-        </div>
-      ) : (
-        <div className="flex h-16 items-center justify-center rounded border border-slate-700/70 bg-slate-950/90 px-2 text-center font-mono text-[10px] text-slate-400">
-          Mastcam-Z preview unavailable offline
-        </div>
-      )}
+      <WaypointMediaViewer waypoint={waypoint} heightClass="h-44" />
 
       <p className="text-[11px] leading-snug text-slate-200">
         {waypoint.scienceObjective}
@@ -644,7 +630,7 @@ export function MarsMap({
                 click: () => onSelectWaypoint(wp.id),
               }}
             >
-              <Popup maxWidth={285} minWidth={245}>
+              <Popup maxWidth={330} minWidth={288}>
                 <PinPopupContent
                   key={wp.id}
                   waypoint={wp}

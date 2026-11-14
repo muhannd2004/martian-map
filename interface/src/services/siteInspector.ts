@@ -1,5 +1,8 @@
 import { JEZERO_GEOLOGIC_UNITS } from '../data/geologicUnits'
-import { JEZERO_WAYPOINTS } from '../data/waypoints'
+import {
+  JEZERO_WAYPOINTS,
+  MARS_TREK_JEZERO_HIRISE_WMTS_URL,
+} from '../data/waypoints'
 import type {
   GeologicUnitProperties,
   HazardLevel,
@@ -8,6 +11,7 @@ import type {
   WaypointCategory,
   WaypointTelemetry,
 } from '../types/eva'
+import { coordsToEpsg4326Tile, formatWmtsTileUrl } from './hiriseTiles'
 import { estimateJezeroElevationM, sampleDemMeters } from './molaDem'
 
 const KM_PER_DEG_LAT = 59.2 // Mars mean spherical scale (~3390 km radius)
@@ -173,6 +177,8 @@ export function createCustomWaypointFromCoords(
     findNearestPresetWaypoint(normalizedCoords)
   const info = classifySite(unit, elevationM, nearest, distKm)
 
+  const { tx, ty } = coordsToEpsg4326Tile(normalizedCoords, 17)
+
   return {
     id,
     name: `Custom Waypoint (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E)`,
@@ -184,9 +190,9 @@ export function createCustomWaypointFromCoords(
     scienceObjective: info.scienceObjective,
     rationale: info.rationale,
     telemetry: buildTelemetryFromElevation(elevationM, info.hazardLevel),
-    povImageUrl: nearest.povImageUrl,
-    povTitle: `${nearest.povTitle} (Regional Ref • ${distKm.toFixed(1)} km)`,
-    povCredit: `${nearest.povCredit} • Nearest Station Context`,
+    povImageUrl: formatWmtsTileUrl(MARS_TREK_JEZERO_HIRISE_WMTS_URL, 17, ty, tx),
+    povTitle: `Site Imagery (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E) — 25cm HiRISE`,
+    povCredit: 'NASA / JPL / UofA HiRISE + CTX',
   }
 }
 

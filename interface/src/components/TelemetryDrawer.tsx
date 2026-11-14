@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import {
   Activity,
   ArrowLeftRight,
-  Camera,
   Clock,
   Flag,
   MapPin,
@@ -23,6 +22,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { EvaRoutePlan, Waypoint } from '../types/eva'
+import { WaypointMediaViewer } from './WaypointMediaViewer'
 
 interface TelemetryDrawerProps {
   open: boolean
@@ -325,7 +325,12 @@ function WaypointBriefCard({
         </span>
       </div>
 
-      <WaypointPovViewer key={waypoint.id} waypoint={waypoint} />
+      <WaypointMediaViewer
+        key={waypoint.id}
+        waypoint={waypoint}
+        heightClass="h-44"
+        showHeader
+      />
 
       <div className="rounded border border-slate-800/90 bg-slate-950/65 px-2.5 py-1.5 font-mono text-[10px] text-amber-200/90">
         {waypoint.geologicUnit}
@@ -386,47 +391,6 @@ function MetricTile({
       >
         {value}
       </div>
-    </div>
-  )
-}
-
-function WaypointPovViewer({ waypoint }: { waypoint: Waypoint }) {
-  const [imageError, setImageError] = useState(false)
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
-      <div className="flex items-center justify-between border-b border-slate-800/80 px-2.5 py-1.5 font-mono text-[10px] text-slate-400">
-        <span className="flex items-center gap-1.5">
-          <Camera className="h-3 w-3 text-cyan-400" />
-          <span>MASTCAM-Z POV</span>
-        </span>
-        <span className="text-[9px] text-slate-500">{waypoint.povCredit}</span>
-      </div>
-
-      {imageError ? (
-        <div className="flex h-40 flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-slate-950 via-[#151218] to-slate-950 px-4 text-center">
-          <Camera className="h-5 w-5 text-amber-400/80" />
-          <div className="font-mono text-[11px] font-semibold text-slate-200">
-            {waypoint.povTitle}
-          </div>
-          <div className="font-mono text-[10px] text-slate-400">
-            Offline / cached HUD placeholder ({waypoint.coords[0].toFixed(4)}°N,{' '}
-            {waypoint.coords[1].toFixed(4)}°E)
-          </div>
-        </div>
-      ) : (
-        <div className="relative h-40 w-full">
-          <img
-            src={waypoint.povImageUrl}
-            alt={waypoint.povTitle}
-            onError={() => setImageError(true)}
-            className="h-full w-full object-cover"
-          />
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#090d16]/95 via-[#090d16]/60 to-transparent px-2.5 py-1.5 font-mono text-[10px] text-slate-200">
-            {waypoint.povTitle}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -295,10 +295,10 @@ function PinPopupContent({
 
       <div>
         <div className="text-xs font-semibold text-white">{waypoint.name}</div>
-        <div className="mt-0.5 font-mono text-[10px] text-slate-400">
-          {waypoint.coords[0].toFixed(4)}°N, {waypoint.coords[1].toFixed(4)}°E
-        </div>
-        <div className="mt-0.5 font-mono text-[10px] text-cyan-300">
+        {/*<div className="mt-0.5 font-mono text-[10px] text-slate-400">*/}
+        {/*  {waypoint.coords[0].toFixed(4)}°N, {waypoint.coords[1].toFixed(4)}°E*/}
+        {/*</div>*/}
+        <div className="mt-0.5 font-mono text-[10px] text-white-300">
           {waypoint.geologicUnit}
         </div>
       </div>
@@ -308,26 +308,26 @@ function PinPopupContent({
       <p className="text-[11px] leading-snug text-slate-200">
         {waypoint.scienceObjective}
       </p>
-      <p className="rounded border border-slate-800/90 bg-slate-950/70 px-2 py-1 font-mono text-[10px] leading-snug text-slate-300">
-        {waypoint.rationale}
-      </p>
+      {/*<p className="rounded border border-slate-800/90 bg-slate-950/70 px-2 py-1 font-mono text-[10px] leading-snug text-slate-300">*/}
+      {/*  {waypoint.rationale}*/}
+      {/*</p>*/}
 
-      <div className="grid grid-cols-3 gap-1 font-mono text-[10px]">
-        <div className="rounded bg-slate-900/90 px-1.5 py-1">
-          <div className="text-[9px] text-slate-500">TEMP</div>
-          <div className="text-slate-200">{waypoint.telemetry.tempC}°C</div>
-        </div>
-        <div className="rounded bg-slate-900/90 px-1.5 py-1">
-          <div className="text-[9px] text-slate-500">WIND</div>
-          <div className="text-slate-200">{waypoint.telemetry.windMs} m/s</div>
-        </div>
-        <div className="rounded bg-slate-900/90 px-1.5 py-1">
-          <div className="text-[9px] text-slate-500">RAD</div>
-          <div className="text-cyan-200">
-            {waypoint.telemetry.radiationMsvDay.toFixed(2)} mSv/d
-          </div>
-        </div>
-      </div>
+      {/*<div className="grid grid-cols-3 gap-1 font-mono text-[10px]">*/}
+      {/*  <div className="rounded bg-slate-900/90 px-1.5 py-1">*/}
+      {/*    <div className="text-[9px] text-slate-500">TEMP</div>*/}
+      {/*    <div className="text-slate-200">{waypoint.telemetry.tempC}°C</div>*/}
+      {/*  </div>*/}
+      {/*  <div className="rounded bg-slate-900/90 px-1.5 py-1">*/}
+      {/*    <div className="text-[9px] text-slate-500">WIND</div>*/}
+      {/*    <div className="text-slate-200">{waypoint.telemetry.windMs} m/s</div>*/}
+      {/*  </div>*/}
+      {/*  <div className="rounded bg-slate-900/90 px-1.5 py-1">*/}
+      {/*    <div className="text-[9px] text-slate-500">RAD</div>*/}
+      {/*    <div className="text-cyan-200">*/}
+      {/*      {waypoint.telemetry.radiationMsvDay.toFixed(2)} mSv/d*/}
+      {/*    </div>*/}
+      {/*  </div>*/}
+      {/*</div>*/}
 
       <div className="grid grid-cols-2 gap-1.5 pt-0.5">
         <button

@@ -569,24 +569,24 @@ export function LayersControl({
           </CircleNode>
 
           {/* 7. Start EVA Route & Open Briefing Mini-Page */}
-          <button
-            type="button"
-            onClick={handleStartRouteClick}
-            title="Start EVA Route & Open Telemetry Briefing"
-            aria-label="Start EVA Route & Open Telemetry Briefing"
-            className={`flex h-10 items-center gap-1.5 rounded-full border px-3.5 font-mono text-[11px] font-bold tracking-wider transition hover:scale-105 ${
-              routePulse
-                ? 'border-emerald-400 bg-emerald-500/30 text-emerald-200'
-                : 'border-cyan-400/75 bg-cyan-500/25 text-cyan-100 hover:bg-cyan-500/35'
-            }`}
-          >
-            {routePulse ? (
-              <Check className="h-3.5 w-3.5" />
-            ) : (
-              <Route className="h-3.5 w-3.5" />
-            )}
-            <span>START ROUTE</span>
-          </button>
+          {/*<button*/}
+          {/*  type="button"*/}
+          {/*  onClick={handleStartRouteClick}*/}
+          {/*  title="Start EVA Route & Open Telemetry Briefing"*/}
+          {/*  aria-label="Start EVA Route & Open Telemetry Briefing"*/}
+          {/*  className={`flex h-10 items-center gap-1.5 rounded-full border px-3.5 font-mono text-[11px] font-bold tracking-wider transition hover:scale-105 ${*/}
+          {/*    routePulse*/}
+          {/*      ? 'border-emerald-400 bg-emerald-500/30 text-emerald-200'*/}
+          {/*      : 'border-cyan-400/75 bg-cyan-500/25 text-cyan-100 hover:bg-cyan-500/35'*/}
+          {/*  }`}*/}
+          {/*>*/}
+          {/*  {routePulse ? (*/}
+          {/*    <Check className="h-3.5 w-3.5" />*/}
+          {/*  ) : (*/}
+          {/*    <Route className="h-3.5 w-3.5" />*/}
+          {/*  )}*/}
+          {/*  <span>START ROUTE</span>*/}
+          {/*</button>*/}
         </div>
       )}
     </div>

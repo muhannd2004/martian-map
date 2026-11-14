@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   AlertCircle,
   ArrowLeftRight,
+  Ban,
   Check,
   Eye,
   EyeOff,
@@ -17,6 +18,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Sun,
+  Trash2,
   Wind,
   X,
 } from 'lucide-react'
@@ -29,7 +31,9 @@ import {
   topoLayerToMeters,
 } from '../data/layerScales'
 import type {
+  AvoidableArea,
   ControlCircleId,
+  LatLonTuple,
   LayerConfig,
   LayerId,
   RasterAvailabilityMap,
@@ -86,7 +90,13 @@ interface LayersControlProps {
   targetWaypointId: string
   maxSlopeDeg: number
   stormMode: boolean
+  avoidableAreas: AvoidableArea[]
+  isDrawingAvoidableArea: boolean
+  draftAvoidablePoints: LatLonTuple[]
   onToggleStormMode: () => void
+  onToggleDrawingAvoidableArea: () => void
+  onRemoveAvoidableArea: (index: number) => void
+  onClearAvoidableAreas: () => void
   onChangeStart: (id: string) => void
   onChangeTarget: (id: string) => void
   onSwapWaypoints: () => void
@@ -109,7 +119,13 @@ export function LayersControl({
   targetWaypointId,
   maxSlopeDeg,
   stormMode,
+  avoidableAreas,
+  isDrawingAvoidableArea,
+  draftAvoidablePoints,
   onToggleStormMode,
+  onToggleDrawingAvoidableArea,
+  onRemoveAvoidableArea,
+  onClearAvoidableAreas,
   onChangeStart,
   onChangeTarget,
   onSwapWaypoints,
@@ -490,6 +506,97 @@ export function LayersControl({
             </div>
           )}
 
+          {/* Avoidable Exclusion Zones Popover */}
+          {activeCircle === 'avoidableArea' && (
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-mono text-[11px] font-bold tracking-wider text-slate-100 uppercase">
+                    Avoidable Areas
+                  </h3>
+                  <p className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                    Draw 4-point exclusion zones bypassed during route
+                    calculation.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full border border-red-500/40 bg-red-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-red-300">
+                  {avoidableAreas.length} ACTIVE
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onToggleDrawingAvoidableArea}
+                  className={`flex-1 cursor-pointer rounded-lg border px-2.5 py-1.5 font-mono text-[10px] font-bold tracking-wide transition ${
+                    isDrawingAvoidableArea
+                      ? 'animate-pulse border-amber-400 bg-amber-500/25 text-amber-200'
+                      : 'border-red-500/50 bg-red-950/50 text-red-200 hover:border-red-400 hover:bg-red-900/50'
+                  }`}
+                >
+                  {isDrawingAvoidableArea
+                    ? `CANCEL DRAWING (${draftAvoidablePoints.length}/4 PTS)`
+                    : '+ AVOIDABLE AREA (4 PTS)'}
+                </button>
+
+                {avoidableAreas.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={onClearAvoidableAreas}
+                    className="cursor-pointer rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 font-mono text-[10px] font-semibold text-slate-300 transition hover:border-red-500/60 hover:text-red-300"
+                  >
+                    CLEAR
+                  </button>
+                )}
+              </div>
+
+              {isDrawingAvoidableArea && (
+                <div className="rounded-lg border border-amber-500/45 bg-amber-500/10 px-2.5 py-2 font-mono text-[10px] text-amber-200">
+                  <div>Click 4 points on map to enclose hazard perimeter:</div>
+                  <div className="mt-1.5 flex items-center gap-1.5 font-bold text-white">
+                    <span className="text-amber-300">Points:</span>
+                    {[1, 2, 3, 4].map((step) => (
+                      <span
+                        key={step}
+                        className={`inline-block h-5 w-5 rounded-full text-center text-[10px] leading-5 ${
+                          step <= draftAvoidablePoints.length
+                            ? 'bg-amber-400 font-black text-slate-950'
+                            : 'border border-slate-600 bg-slate-900 text-slate-400'
+                        }`}
+                      >
+                        {step}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {avoidableAreas.length > 0 && (
+                <div className="max-h-32 space-y-1 overflow-y-auto pr-0.5">
+                  {avoidableAreas.map((_, idx) => (
+                    <div
+                      key={`avoidable-item-${idx}`}
+                      className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/75 px-2.5 py-1.5 font-mono text-[10px]"
+                    >
+                      <span className="font-semibold text-red-300">
+                        Avoidable Area #{idx + 1} (4 pts)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onRemoveAvoidableArea(idx)}
+                        title={`Remove Avoidable Area #${idx + 1}`}
+                        aria-label={`Remove Avoidable Area #${idx + 1}`}
+                        className="cursor-pointer rounded p-1 text-slate-400 transition hover:bg-red-500/15 hover:text-red-300"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       )}
 
@@ -566,6 +673,17 @@ export function LayersControl({
             onClick={() => handleCircleClick('stormMode')}
           >
             <ShieldAlert className="h-4 w-4" />
+          </CircleNode>
+
+          {/* 7. Avoidable Exclusion Areas Circle */}
+          <CircleNode
+            active={activeCircle === 'avoidableArea'}
+            enabled={isDrawingAvoidableArea || avoidableAreas.length > 0}
+            alertDot={isDrawingAvoidableArea || avoidableAreas.length > 0}
+            label={`Avoidable Areas (${avoidableAreas.length} active)`}
+            onClick={() => handleCircleClick('avoidableArea')}
+          >
+            <Ban className="h-4 w-4" />
           </CircleNode>
 
           {/* 7. Start EVA Route & Open Briefing Mini-Page */}

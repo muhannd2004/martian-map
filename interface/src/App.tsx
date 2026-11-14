@@ -369,10 +369,8 @@ function App() {
           onSetStart={handleChangeStart}
           onSetTarget={handleChangeTarget}
           onStartRouteFromPin={handleStartRouteFromPin}
-          onToggleDrawingAvoidableArea={handleToggleDrawingAvoidableArea}
           onAddAvoidablePoint={handleAddAvoidablePoint}
           onRemoveAvoidableArea={handleRemoveAvoidableArea}
-          onClearAvoidableAreas={handleClearAvoidableAreas}
         />
 
         <LayersControl
@@ -390,7 +388,13 @@ function App() {
           targetWaypointId={targetWaypointId}
           maxSlopeDeg={maxSlopeDeg}
           stormMode={stormMode}
+          avoidableAreas={avoidableAreas}
+          isDrawingAvoidableArea={isDrawingAvoidableArea}
+          draftAvoidablePoints={draftAvoidablePoints}
           onToggleStormMode={handleToggleStormMode}
+          onToggleDrawingAvoidableArea={handleToggleDrawingAvoidableArea}
+          onRemoveAvoidableArea={handleRemoveAvoidableArea}
+          onClearAvoidableAreas={handleClearAvoidableAreas}
           onChangeStart={handleChangeStart}
           onChangeTarget={handleChangeTarget}
           onSwapWaypoints={handleSwapWaypoints}

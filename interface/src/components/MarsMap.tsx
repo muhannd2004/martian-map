@@ -60,10 +60,8 @@ interface MarsMapProps {
   onSetStart: (waypointId: string) => void
   onSetTarget: (waypointId: string) => void
   onStartRouteFromPin: (waypointId: string) => void
-  onToggleDrawingAvoidableArea: () => void
   onAddAvoidablePoint: (coords: LatLonTuple) => void
   onRemoveAvoidableArea: (index: number) => void
-  onClearAvoidableAreas: () => void
 }
 
 const CATEGORY_COLORS: Record<
@@ -433,10 +431,8 @@ export function MarsMap({
   onSetStart,
   onSetTarget,
   onStartRouteFromPin,
-  onToggleDrawingAvoidableArea,
   onAddAvoidablePoint,
   onRemoveAvoidableArea,
-  onClearAvoidableAreas,
 }: MarsMapProps) {
   const [cursorCoords, setCursorCoords] = useState<LatLonTuple | null>(null)
 
@@ -748,56 +744,6 @@ export function MarsMap({
           </>
         )}
       </MapContainer>
-
-      {/* Top-Left Avoidable Areas Control Tool */}
-      <div className="absolute top-3 left-3 z-[400] flex flex-col gap-1.5">
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onToggleDrawingAvoidableArea}
-            className={`cursor-pointer rounded border px-3 py-1 font-mono text-[11px] font-bold tracking-wide backdrop-blur-md transition-all shadow-lg ${
-              isDrawingAvoidableArea
-                ? 'border-amber-400 bg-amber-500/25 text-amber-200 ring-2 ring-amber-400/30 animate-pulse'
-                : 'border-red-500/50 bg-[#090d16]/90 text-red-300 hover:border-red-400 hover:bg-red-950/60'
-            }`}
-          >
-            {isDrawingAvoidableArea
-              ? `CANCEL DRAWING (${draftAvoidablePoints.length}/4 PTS)`
-              : '+ AVOIDABLE AREA (4 PTS)'}
-          </button>
-
-          {avoidableAreas.length > 0 && (
-            <button
-              type="button"
-              onClick={onClearAvoidableAreas}
-              className="cursor-pointer rounded border border-slate-700 bg-[#090d16]/90 px-2.5 py-1 font-mono text-[11px] font-semibold text-slate-300 backdrop-blur-md transition-colors hover:border-red-500/60 hover:text-red-300 shadow-lg"
-            >
-              CLEAR ({avoidableAreas.length})
-            </button>
-          )}
-        </div>
-
-        {isDrawingAvoidableArea && (
-          <div className="rounded border border-amber-500/50 bg-[#090d16]/95 px-3 py-2 font-mono text-[10px] text-amber-300 shadow-xl backdrop-blur-md">
-            <div>Click 4 points on map to enclose hazard perimeter:</div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-white">
-              <span>Points:</span>
-              {[1, 2, 3, 4].map((step) => (
-                <span
-                  key={step}
-                  className={`inline-block h-5 w-5 rounded-full text-center leading-5 text-[10px] ${
-                    step <= draftAvoidablePoints.length
-                      ? 'bg-amber-400 text-slate-950 font-black'
-                      : 'border border-slate-600 bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  {step}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Bottom-Left Cursor Coordinate & Projection HUD */}
       <div className="pointer-events-none absolute bottom-3 left-3 z-[400] flex flex-col gap-1.5">

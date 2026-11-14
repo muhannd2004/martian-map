@@ -65,7 +65,12 @@ export type LayerId =
   | 'geologicZones'
   | 'perseveranceTraverse'
 
-export type ControlCircleId = LayerId | 'waypoints' | 'maxSlope' | 'stormMode'
+export type ControlCircleId =
+  | LayerId
+  | 'waypoints'
+  | 'maxSlope'
+  | 'stormMode'
+  | 'avoidableArea'
 
 export type LayerKind =
   | 'mola-dem'

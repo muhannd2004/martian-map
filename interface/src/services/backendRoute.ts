@@ -1,7 +1,7 @@
 import type { EvaRoutePlan, LatLonTuple, PlanEvaParams, Waypoint } from '../types/eva'
 import { planLocalEvaRoute } from './localRoutePlanner'
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+const API_BASE_URL = (import.meta.env.API_URL ?? '').replace(/\/$/, '')
 
 export async function fetchBackendRoute(
   start: Waypoint,

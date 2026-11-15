@@ -1,2 +1,3 @@
 api/data
 .idea
+__pycache__/*

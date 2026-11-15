@@ -5,7 +5,6 @@ from rasterio.warp import Resampling, reproject
 from skimage.graph import MCP_Geometric
 from skimage.draw import polygon
 from rasterio.fill import fillnodata
-from scipy.ndimage import gaussian_filter
 
 class TerrainRouter:
 

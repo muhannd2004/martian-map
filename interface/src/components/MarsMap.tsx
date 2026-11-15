@@ -532,7 +532,6 @@ export function MarsMap({
   startWaypointId,
   targetWaypointId,
   selectedWaypointId,
-  stormMode,
   avoidableAreas,
   isDrawingAvoidableArea,
   draftAvoidablePoints,

@@ -284,12 +284,4 @@ export const INITIAL_LAYERS: LayerConfig[] = [
     opacity: 0.45,
     kind: 'vector',
   },
-  {
-    id: 'perseveranceTraverse',
-    label: 'Perseverance Historical Traverse',
-    subtitle: 'Mars 2020 Jezero reference path',
-    visible: true,
-    opacity: 0.85,
-    kind: 'vector',
-  },
 ]

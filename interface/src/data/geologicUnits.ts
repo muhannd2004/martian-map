@@ -1,5 +1,5 @@
 import type { FeatureCollection, Polygon } from 'geojson'
-import type { GeologicUnitProperties, LatLonTuple } from '../types/eva'
+import type { GeologicUnitProperties } from '../types/eva'
 
 /**
  * Starter USGS Geologic & Trafficability Zones across the Jezero Western Delta core.
@@ -121,18 +121,3 @@ export const JEZERO_GEOLOGIC_UNITS: FeatureCollection<
     },
   ],
 }
-
-/** Approximate Mars 2020 Perseverance traverse path in [lat, lon] order for Leaflet Polyline */
-export const PERSEVERANCE_TRAVERSE: LatLonTuple[] = [
-  [18.4447, 77.4508], // Octavia E. Butler Landing
-  [18.4415, 77.443],
-  [18.4368, 77.434], // South around Séítah rim
-  [18.441, 77.422],
-  [18.4485, 77.413],
-  [18.4555, 77.406], // Approaching Kodiak / Three Forks
-  [18.462, 77.398], // Three Forks
-  [18.4685, 77.391],
-  [18.4742, 77.382],
-  [18.4795, 77.373],
-  [18.485, 77.365], // Bright Angel / Margin Unit
-]

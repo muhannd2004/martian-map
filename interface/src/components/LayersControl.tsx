@@ -5,7 +5,6 @@ import {
   Eye,
   EyeOff,
   Flame,
-  Footprints,
   Gem,
   Hexagon,
   MapPin,
@@ -760,8 +759,6 @@ function renderLayerIcon(layerId: LayerId): React.ReactNode {
       return <Flame className="h-4 w-4" />
     case 'geologicZones':
       return <Hexagon className="h-4 w-4" />
-    case 'perseveranceTraverse':
-      return <Footprints className="h-4 w-4" />
   }
 }
 

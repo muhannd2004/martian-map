@@ -14,10 +14,7 @@ import {
   useMap,
   useMapEvents,
 } from 'react-leaflet'
-import {
-  JEZERO_GEOLOGIC_UNITS,
-  PERSEVERANCE_TRAVERSE,
-} from '../data/geologicUnits'
+import { JEZERO_GEOLOGIC_UNITS } from '../data/geologicUnits'
 import {
   JezeroElevationLayer,
   TesSpectralCanvasLayer,
@@ -696,25 +693,6 @@ export function MarsMap({
           />
         )}
 
-        {/* Perseverance Historical Traverse */}
-        {layerById.perseveranceTraverse.visible && (
-          <Polyline
-            positions={PERSEVERANCE_TRAVERSE}
-            pathOptions={{
-              color: '#cbd5e1',
-              weight: 2,
-              dashArray: '4 6',
-              opacity: layerById.perseveranceTraverse.opacity,
-            }}
-          >
-            <Tooltip sticky className="ares-tooltip">
-              <span className="font-mono text-[11px]">
-                Mars 2020 Perseverance Historical Traverse (Reference)
-              </span>
-            </Tooltip>
-          </Polyline>
-        )}
-
         {/* Calculated EVA Route Polyline (Outer Glow + Inner Core) */}
         {routePlan.coordinates.length > 1 && (
           <>
@@ -882,11 +860,11 @@ export function MarsMap({
 
       {/* Top-Center Route Advisory Overlay */}
       <div className="pointer-events-none absolute top-3 left-1/2 z-[400] -translate-x-1/2 flex flex-col items-center gap-1.5">
-        <div className="rounded-full border border-cyan-500/35 bg-[#090d16]/85 px-3.5 py-1 font-mono text-[11px] text-cyan-200 shadow-lg backdrop-blur-md">
-          {stormMode
-            ? `STORM SHELTER ROUTE • MAX SLOPE ≤ ${routePlan.maxSlopeLimitDeg}°`
-            : `NOMINAL ROUTE • MAX SLOPE ≤ ${routePlan.maxSlopeLimitDeg}°`}
-        </div>
+        {/*<div className="rounded-full border border-cyan-500/35 bg-[#090d16]/85 px-3.5 py-1 font-mono text-[11px] text-cyan-200 shadow-lg backdrop-blur-md">*/}
+        {/*  {stormMode*/}
+        {/*    ? `STORM SHELTER ROUTE • MAX SLOPE ≤ ${routePlan.maxSlopeLimitDeg}°`*/}
+        {/*    : `NOMINAL ROUTE • MAX SLOPE ≤ ${routePlan.maxSlopeLimitDeg}°`}*/}
+        {/*</div>*/}
         {routeLoading ? (
           <div className="rounded-full border border-amber-400/50 bg-amber-500/15 px-3 py-0.5 font-mono text-[10px] text-amber-300 shadow backdrop-blur-md animate-pulse">
             ⟳ COMPUTING DEM PATH…
@@ -896,8 +874,8 @@ export function MarsMap({
             ✓ DEM SHORTEST PATH
           </div>
         ) : (
-          <div className="rounded-full border border-slate-500/40 bg-slate-800/60 px-3 py-0.5 font-mono text-[10px] text-slate-400 shadow backdrop-blur-md">
-            LOCAL PREVIEW
+          <div className="rounded-full border border-slate-500/40 bg-red-800/60 px-3 py-0.5 font-mono text-[10px] text-slate-400 shadow backdrop-blur-md">
+            NO PATH POSSIBLE
           </div>
         )}
       </div>

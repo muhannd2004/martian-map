@@ -63,7 +63,6 @@ export type LayerId =
   | 'tesDust'
   | 'slopeHeatmap'
   | 'geologicZones'
-  | 'perseveranceTraverse'
 
 export type ControlCircleId =
   | LayerId

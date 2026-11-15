@@ -1,9 +1,7 @@
-import { useState } from 'react'
 import {
   AlertCircle,
   ArrowLeftRight,
   Ban,
-  Check,
   Eye,
   EyeOff,
   Flame,
@@ -13,7 +11,6 @@ import {
   MapPin,
   Moon,
   Mountain,
-  Route,
   ShieldAlert,
   SlidersHorizontal,
   Sparkles,
@@ -130,9 +127,7 @@ export function LayersControl({
   onChangeTarget,
   onSwapWaypoints,
   onChangeMaxSlope,
-  onStartRoute,
 }: LayersControlProps) {
-  const [routePulse, setRoutePulse] = useState(false)
 
   const slopeMissing = rasterStatus.slopeHeatmap === 'missing'
 
@@ -140,11 +135,6 @@ export function LayersControl({
     onSelectCircle(activeCircle === circleId ? null : circleId)
   }
 
-  const handleStartRouteClick = () => {
-    onStartRoute()
-    setRoutePulse(true)
-    window.setTimeout(() => setRoutePulse(false), 900)
-  }
 
   const activeLayer = layers.find((l) => l.id === activeCircle)
 

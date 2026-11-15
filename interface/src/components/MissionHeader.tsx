@@ -1,9 +1,5 @@
 import {
-  Activity,
   Compass,
-  Radiation,
-  Thermometer,
-  Wind,
 } from 'lucide-react'
 
 interface MissionHeaderProps {
@@ -12,10 +8,9 @@ interface MissionHeaderProps {
   onOpenBriefing: () => void
 }
 
+// eslint-disable-next-line no-empty-pattern
 export function MissionHeader({
-  solLabel,
-  stormMode,
-  onOpenBriefing,
+
 }: MissionHeaderProps) {
   // const tempC = stormMode ? -71 : -63
   // const pressurePa = stormMode ? 768 : 720
